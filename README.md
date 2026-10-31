@@ -36,23 +36,39 @@ A small second desk for an old iPad and a laptop on the same Wi-Fi. Keep quick n
 
 ## 🚪 Start the desk
 
-Find the laptop's Wi-Fi IPv4 address (on Windows, run `ipconfig` and look for the wireless adapter's IPv4 Address). Make a small folder for the files you want on the iPad; do not choose your whole user folder or drive.
+Follow these steps on the laptop. You only need to do the setup once; after that, start the server whenever you want to use the iPad desk.
 
-From the Pocket Desk folder, run this in PowerShell, replacing the folder and address with yours:
+1. **Check Python.** Open PowerShell and run:
 
 ```powershell
-python server.py --share-folder "C:\Users\you\Pocket Shelf" --host 192.168.1.24
+python --version
 ```
 
-The server binds only to that exact IPv4 address. Without `--host`, it binds to `127.0.0.1`, which is laptop-only. It does not open firewall ports or change your router. If Windows or the network blocks the connection, check those settings yourself; Pocket Desk will not change them.
+You need Python 3.8 or later. If PowerShell says it cannot find `python`, try `py --version`; use `py` instead of `python` in the commands below.
 
-The terminal prints the iPad address and a temporary pairing code. On the laptop, open the control page:
+2. **Choose one folder to share.** In File Explorer, create `Pocket Shelf` on your Desktop and put a harmless test file in it. The iPad will only be able to read files inside this folder. Do not choose your whole Desktop, user folder, or drive.
 
-```text
-http://127.0.0.1:8788/host.html
+3. **Find the laptop's Wi-Fi address.** In PowerShell, run:
+
+```powershell
+ipconfig
 ```
 
-The control page listens on loopback only. Keep the terminal window open while using the desk; press **Ctrl+C** there to stop both local servers.
+Under **Wireless LAN adapter Wi-Fi**, note the **IPv4 Address**. It will look like `192.168.1.24`. Use the address shown on your laptop; that number is only an example.
+
+4. **Open PowerShell in the Pocket Desk folder.** In File Explorer, open the folder that contains `server.py`. Click the address bar, type `powershell`, and press Enter. This opens PowerShell in the right place.
+
+5. **Start the server.** Replace `192.168.1.24` with the laptop's IPv4 address from step 3. This command shares the Desktop folder from step 2:
+
+```powershell
+python server.py --share-folder "$env:USERPROFILE\Desktop\Pocket Shelf" --host 192.168.1.24
+```
+
+If you used `py` in step 1, run `py server.py` with the same options instead.
+
+The terminal prints an **iPad address** and a fresh six-digit pairing code. Keep this PowerShell window open while you use Pocket Desk. The server binds only to the exact IPv4 address you supplied; without `--host`, it binds to `127.0.0.1` and only works on the laptop. It does not open firewall ports or change your router. If Windows or the network blocks the connection, Pocket Desk will not change those settings for you.
+
+The laptop's local control page is `http://127.0.0.1:8788/host.html`. It shows the code and has the **Disconnect iPad** button. Press **Ctrl+C** in the server window to stop Pocket Desk.
 
 ## 📱 Connect the iPad
 
