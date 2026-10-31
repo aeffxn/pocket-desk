@@ -8,6 +8,7 @@ A private workspace that runs on your computer and opens in a phone or tablet br
 - **Games:** Snake, Finger football, Shoot the hoop, Tic-tac-toe, Memory match, 2048, Reaction test, Rock paper scissors, Simon, Number recall, Word scramble, Higher or lower, and Tap sprint.
 - **Themes:** Paper, Midnight, Blue hour, Grove, and Rosewood. The selection is saved in the browser.
 - **Notes:** Create, edit, search, and delete notes stored on the computer.
+- **Drawing notes:** Draw with touch, mouse, or a stylus; add typed text, lines, rectangles, and ellipses. More pages append as you scroll. Drawings autosave on the computer.
 - **File shelf:** Browse one selected folder. Open images, text, CSV files, and PDFs in the browser; download other formats or save a copy.
 - **Photo drop:** Optional image upload to a separate folder chosen on the computer. The user confirms each upload.
 - **Connection:** A short-lived pairing code connects one browser session at a time.
@@ -45,7 +46,7 @@ The interface uses ordinary HTML, CSS, and ES5 JavaScript for broad mobile-brows
 
 The workspace is intended for a trusted local network. Pairing codes, notes, files, and selected photos travel over unencrypted HTTP. Do not use public Wi-Fi or forward the ports to the internet. The server binds to the specific IPv4 address you enter; its desktop control page is loopback-only. It does not configure your firewall or router.
 
-Notes are stored outside the project at `%LOCALAPPDATA%\PocketDesk\notes.json` on Windows. Photo uploads are saved only to the selected destination. No telemetry, analytics, or cloud sync is included.
+Notes and drawings are stored outside the project in `%LOCALAPPDATA%\PocketDesk\` on Windows. Photo uploads are saved only to the selected destination. No telemetry, analytics, or cloud sync is included.
 
 ## Project files
 

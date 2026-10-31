@@ -200,6 +200,25 @@ body { background: #f5f6f6; color: #202826; font-family: Arial, Helvetica, sans-
 .note-card,.file-row { background: #fff; }
 .file-link { color: #263b34; }
 .file-download { margin-left: 14px; }
+.notes-actions { float: right; margin-top: 8px; }
+.notes-actions .button { margin-left: 5px; }
+.saved-drawings-title { margin: 26px 0 5px; font: 600 18px Arial, sans-serif; }
+.drawing-editor { margin-top: 14px; }
+.drawing-topline { overflow: hidden; margin: 0 0 13px; }
+.drawing-topline .button { float: left; }
+.drawing-topline .quiet-message { float: right; }
+.drawing-toolbar { position: -webkit-sticky; position: sticky; top: 0; z-index: 4; padding: 9px 7px; border: 1px solid #d9dfdc; border-radius: 6px; background: #f5f6f6; }
+.drawing-toolbar label { display: inline-block; margin: 4px; color: #596461; font: 10px Arial, sans-serif; }
+.drawing-toolbar select { min-height: 37px; margin: 3px; padding: 5px; border: 1px solid #ccd4d0; border-radius: 4px; background: #fff; color: #202826; font: 13px Arial, sans-serif; }
+.drawing-toolbar input[type=color] { width: 38px; height: 37px; margin: 3px; padding: 2px; border: 1px solid #ccd4d0; vertical-align: middle; }
+.drawing-toolbar .button { min-height: 37px; margin: 3px; padding: 7px 9px; }
+.drawing-text-entry { position: -webkit-sticky; position: sticky; top: 58px; z-index: 3; padding: 8px; border: 1px solid #d9dfdc; background: #eef1ef; }
+.drawing-text-entry textarea { width: 100%; padding: 8px; border: 1px solid #ccd4d0; font: 16px/1.4 Arial, sans-serif; }
+.drawing-text-entry .button { margin-top: 6px; }
+.drawing-pages { width: 100%; max-width: 720px; margin: 0 auto; }
+.drawing-page { margin: 12px 0 24px; padding: 0 0 10px; border: 1px solid #d5dbd8; background: #fff; box-shadow: 0 2px 6px rgba(25, 35, 31, .08); }
+.drawing-page-label { padding: 7px 10px; color: #596461; font: 11px Arial, sans-serif; }
+.drawing-page canvas { display: block; width: 100%; height: auto; background: #fff; touch-action: none; }
 .pair-paper { box-shadow: none; }
 .desk-footer { padding: 13px 0 23px; border-top: 1px solid #d7d2c6; color: #7c837a; font: 9px "Courier New", monospace; letter-spacing: .5px; overflow: hidden; }
 .desk-footer span:first-child { float: left; }
@@ -250,6 +269,13 @@ body { background: #f5f6f6; color: #202826; font-family: Arial, Helvetica, sans-
   .desk-actions { margin-top: 8px; text-align: right; }
   .desk-heading .desk-actions .button { min-height: 36px; padding: 7px 8px; margin-left: 2px; }
   .theme-options button { width: 32%; margin-right: 1%; }
+  .notes-actions { float: none; margin-top: 12px; text-align: right; }
+  .notes-actions .button { margin-left: 3px; }
+  .drawing-toolbar { padding: 6px 4px; }
+  .drawing-toolbar label { margin: 3px 2px; }
+  .drawing-toolbar select { max-width: 105px; min-height: 38px; margin: 2px; }
+  .drawing-toolbar .button { margin: 2px; }
+  .drawing-text-entry { top: 55px; }
   .host-wrap { padding: 0 17px; }
   .host-only { top: 66px; left: 0; right: auto; font-size: 8px; }
   .host-panel { margin-top: 47px; padding: 24px 19px; }

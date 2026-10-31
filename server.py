@@ -5,8 +5,10 @@ import hmac
 import http.server
 import ipaddress
 import json
+import math
 import mimetypes
 import os
+import re
 import secrets
 import threading
 import time
@@ -52,7 +54,7 @@ def inside(root, candidate):
 
 
 class DeskState:
-    def __init__(self, shared_folder, notes_path, photo_folder=None):
+    def __init__(self, shared_folder, notes_path, photo_folder=None, drawings_path=None):
         self.shared_folder = Path(shared_folder).resolve(strict=True)
         if not self.shared_folder.is_dir():
             raise ValueError("The shared folder must be an existing directory.")
@@ -60,9 +62,11 @@ class DeskState:
         if self.photo_folder is not None and not self.photo_folder.is_dir():
             raise ValueError("The photo destination must be an existing directory.")
         self.notes_path = Path(notes_path)
+        self.drawings_path = Path(drawings_path) if drawings_path else self.notes_path.with_name("drawings.json")
         self.notes_path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         self.notes = self.read_notes()
+        self.drawings = self.read_drawings()
         self.pair_code = ""
         self.code_expires = 0
         self.session_token = ""
@@ -102,6 +106,136 @@ class DeskState:
             except OSError:
                 pass
             return False
+
+    @staticmethod
+    def valid_drawing(drawing):
+        if not isinstance(drawing, dict) or not isinstance(drawing.get("id"), str):
+            return False
+        if not isinstance(drawing.get("title"), str) or len(drawing["title"]) > 80:
+            return False
+        if not isinstance(drawing.get("updated"), str):
+            return False
+        pages = drawing.get("pages")
+        if not isinstance(pages, list) or not pages:
+            return False
+        item_count = 0
+        for page in pages:
+            if not isinstance(page, dict) or not isinstance(page.get("items"), list):
+                return False
+            for item in page["items"]:
+                item_count += 1
+                if item_count > 25000 or not isinstance(item, dict):
+                    return False
+                kind = item.get("kind")
+                color = item.get("color")
+                width = item.get("width")
+                if not isinstance(color, str) or not re.match(r"^#[0-9a-fA-F]{6}$", color):
+                    return False
+                if (not isinstance(width, (int, float)) or isinstance(width, bool)
+                        or width < 1 or width > 40 or not math.isfinite(width)):
+                    return False
+                if kind == "stroke":
+                    points = item.get("points")
+                    if not isinstance(points, list) or not points or len(points) > 5000:
+                        return False
+                    for point in points:
+                        if (not isinstance(point, list) or len(point) != 2
+                                or not isinstance(point[0], (int, float)) or isinstance(point[0], bool)
+                                or point[0] < 0 or point[0] > 720 or not math.isfinite(point[0])
+                                or not isinstance(point[1], (int, float)) or isinstance(point[1], bool)
+                                or point[1] < 0 or point[1] > 900 or not math.isfinite(point[1])):
+                            return False
+                elif kind in ("line", "rect", "ellipse"):
+                    for key in ("x1", "x2"):
+                        value = item.get(key)
+                        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                                or value < 0 or value > 720 or not math.isfinite(value)):
+                            return False
+                    for key in ("y1", "y2"):
+                        value = item.get(key)
+                        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                                or value < 0 or value > 900 or not math.isfinite(value)):
+                            return False
+                elif kind == "text":
+                    value = item.get("text")
+                    size = item.get("size")
+                    if (not isinstance(value, str) or not value or len(value) > 1200
+                            or not isinstance(size, (int, float)) or isinstance(size, bool)
+                            or size < 10 or size > 72 or not math.isfinite(size)):
+                        return False
+                    for key, limit in (("x", 720), ("y", 900)):
+                        coordinate = item.get(key)
+                        if (not isinstance(coordinate, (int, float)) or isinstance(coordinate, bool)
+                                or coordinate < 0 or coordinate > limit or not math.isfinite(coordinate)):
+                            return False
+                else:
+                    return False
+        return True
+
+    def read_drawings(self):
+        try:
+            with self.drawings_path.open("r", encoding="utf-8") as file_obj:
+                saved = json.load(file_obj)
+            if isinstance(saved, list) and len(saved) <= 200 and all(self.valid_drawing(item) for item in saved):
+                return saved
+        except (OSError, ValueError, TypeError):
+            pass
+        return []
+
+    def write_drawings(self):
+        temporary = self.drawings_path.with_suffix(".tmp")
+        try:
+            with temporary.open("w", encoding="utf-8", newline="\n") as file_obj:
+                json.dump(self.drawings, file_obj, ensure_ascii=False, separators=(",", ":"))
+                file_obj.write("\n")
+            os.replace(str(temporary), str(self.drawings_path))
+            return True
+        except OSError:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+            return False
+
+    def create_drawing(self, title, pages):
+        drawing = {"id": secrets.token_hex(8), "title": title.strip()[:80], "updated": now_stamp(), "pages": pages}
+        if not self.valid_drawing(drawing):
+            raise ValueError("This drawing is too large or contains invalid marks.")
+        with self.lock:
+            if len(self.drawings) >= 200:
+                raise ValueError("This desk has reached its 200 drawing limit.")
+            self.drawings.insert(0, drawing)
+            if not self.write_drawings():
+                self.drawings.pop(0)
+                raise OSError("The computer could not save this drawing.")
+        return drawing
+
+    def update_drawing(self, drawing_id, title, pages):
+        with self.lock:
+            drawing = next((item for item in self.drawings if item["id"] == drawing_id), None)
+            if drawing is None:
+                raise KeyError("That drawing is no longer available.")
+            replacement = {"id": drawing_id, "title": title.strip()[:80], "updated": now_stamp(), "pages": pages}
+            if not self.valid_drawing(replacement):
+                raise ValueError("This drawing is too large or contains invalid marks.")
+            previous = dict(drawing)
+            drawing.update(replacement)
+            if not self.write_drawings():
+                drawing.update(previous)
+                raise OSError("The computer could not save this drawing.")
+            return drawing
+
+    def delete_drawing(self, drawing_id):
+        with self.lock:
+            original = self.drawings
+            self.drawings = [item for item in original if item["id"] != drawing_id]
+            if len(self.drawings) == len(original):
+                self.drawings = original
+                return False
+            if not self.write_drawings():
+                self.drawings = original
+                raise OSError("The computer could not update its drawings file.")
+            return True
 
     def new_pair_code(self):
         with self.lock:
@@ -322,6 +456,12 @@ class DeskHandler(BaseHandler):
                 with self.server.state.lock:
                     self.send_json(200, {"notes": list(self.server.state.notes)})
                 return
+            if path == "/api/drawings":
+                if not self.auth_required():
+                    return
+                with self.server.state.lock:
+                    self.send_json(200, {"drawings": list(self.server.state.drawings)})
+                return
             if path == "/api/device":
                 if not self.auth_required():
                     return
@@ -365,6 +505,20 @@ class DeskHandler(BaseHandler):
                 self.send_json(200, {"url": "/api/files/ticket/" + ticket})
             except (OSError, ValueError) as error:
                 self.send_json(400, {"error": str(error) or "That file is unavailable."})
+            return
+        if path == "/api/drawings":
+            if not self.auth_required():
+                return
+            try:
+                data = self.read_json()
+                title = data.get("title", "")
+                pages = data.get("pages")
+                if not isinstance(title, str) or not isinstance(pages, list):
+                    raise ValueError("Drawing title and pages are required.")
+                drawing = self.server.state.create_drawing(title, pages)
+                self.send_json(201, {"drawing": drawing})
+            except (OSError, ValueError) as error:
+                self.send_json(400, {"error": str(error) or "Could not save the drawing."})
             return
         if path == "/api/unpair":
             if not self.auth_required():
@@ -459,6 +613,27 @@ class DeskHandler(BaseHandler):
 
     def do_PUT(self):
         path = self.api_path()
+        drawing_prefix = "/api/drawings/"
+        if path.startswith(drawing_prefix):
+            if not self.auth_required():
+                return
+            drawing_id = path[len(drawing_prefix):]
+            if not drawing_id or "/" in drawing_id:
+                self.send_json(400, {"error": "That drawing address is not valid."})
+                return
+            try:
+                data = self.read_json()
+                title = data.get("title", "")
+                pages = data.get("pages")
+                if not isinstance(title, str) or not isinstance(pages, list):
+                    raise ValueError("Drawing title and pages are required.")
+                drawing = self.server.state.update_drawing(drawing_id, title, pages)
+                self.send_json(200, {"drawing": drawing})
+            except KeyError as error:
+                self.send_json(404, {"error": str(error).strip("'")})
+            except (OSError, ValueError) as error:
+                self.send_json(400, {"error": str(error) or "Could not save the drawing."})
+            return
         prefix = "/api/notes/"
         if not path.startswith(prefix) or not self.auth_required():
             if not path.startswith(prefix):
@@ -497,6 +672,23 @@ class DeskHandler(BaseHandler):
 
     def do_DELETE(self):
         path = self.api_path()
+        drawing_prefix = "/api/drawings/"
+        if path.startswith(drawing_prefix):
+            if not self.auth_required():
+                return
+            drawing_id = path[len(drawing_prefix):]
+            if not drawing_id or "/" in drawing_id:
+                self.send_json(400, {"error": "That drawing address is not valid."})
+                return
+            try:
+                if not self.server.state.delete_drawing(drawing_id):
+                    self.send_json(404, {"error": "That drawing is no longer available."})
+                    return
+            except OSError as error:
+                self.send_json(500, {"error": str(error)})
+                return
+            self.send_json(200, {"removed": True})
+            return
         prefix = "/api/notes/"
         if not path.startswith(prefix) or not self.auth_required():
             if not path.startswith(prefix):

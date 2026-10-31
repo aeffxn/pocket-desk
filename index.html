@@ -65,17 +65,33 @@
         </section>
 
         <section id="notes-panel" class="tool-panel" style="display:none">
-          <div class="panel-heading"><div><p class="overline">SCRAPS & REMINDERS</p><h2>Quick notes</h2></div><button id="new-note" class="button button-dark" type="button">＋ New note</button></div>
-          <label class="search-label" for="note-search">SEARCH</label><input id="note-search" class="search-input" type="search" placeholder="Search notes">
-          <form id="note-form" class="note-form" style="display:none">
-            <input id="note-id" type="hidden" value="">
-            <label for="note-title">TITLE <span>optional</span></label><input id="note-title" type="text" maxlength="80" placeholder="Title">
-            <label for="note-body">NOTE</label><textarea id="note-body" rows="4" maxlength="1200" placeholder="Write a note" required></textarea>
-            <p id="note-error" class="form-message" role="alert"></p>
-            <div class="form-actions"><button id="cancel-note" class="button button-outline" type="button">Cancel</button><button class="button button-dark" type="submit">Save note</button></div>
-          </form>
-          <p id="notes-message" class="quiet-message" role="status"></p>
-          <ul id="note-list" class="note-list"></ul>
+          <div class="panel-heading"><div><p class="overline">NOTES</p><h2>Notes</h2></div><div class="notes-actions"><button id="new-note" class="button button-outline" type="button">New note</button><button id="new-drawing" class="button button-dark" type="button">New drawing</button></div></div>
+          <div id="notes-home">
+            <label class="search-label" for="note-search">SEARCH</label><input id="note-search" class="search-input" type="search" placeholder="Search notes">
+            <form id="note-form" class="note-form" style="display:none">
+              <input id="note-id" type="hidden" value="">
+              <label for="note-title">TITLE <span>optional</span></label><input id="note-title" type="text" maxlength="80" placeholder="Title">
+              <label for="note-body">NOTE</label><textarea id="note-body" rows="4" maxlength="1200" placeholder="Write a note" required></textarea>
+              <p id="note-error" class="form-message" role="alert"></p>
+              <div class="form-actions"><button id="cancel-note" class="button button-outline" type="button">Cancel</button><button class="button button-dark" type="submit">Save note</button></div>
+            </form>
+            <p id="notes-message" class="quiet-message" role="status"></p>
+            <ul id="note-list" class="note-list"></ul>
+            <h3 class="saved-drawings-title">Drawings</h3><p id="drawings-message" class="quiet-message" role="status"></p><ul id="drawing-list" class="note-list"></ul>
+          </div>
+          <div id="drawing-editor" class="drawing-editor" style="display:none">
+            <div class="drawing-topline"><button id="drawing-back" class="button button-outline" type="button">Back to notes</button><span id="drawing-save-state" class="quiet-message">New drawing</span></div>
+            <label class="search-label" for="drawing-title">TITLE</label><input id="drawing-title" class="search-input" type="text" maxlength="80" placeholder="Untitled drawing">
+            <div class="drawing-toolbar">
+              <label for="drawing-tool">TOOL</label><select id="drawing-tool"><option value="pen">Pen</option><option value="eraser">Eraser</option><option value="line">Line</option><option value="rect">Rectangle</option><option value="ellipse">Ellipse</option><option value="text">Text</option></select>
+              <label for="drawing-color">COLOR</label><input id="drawing-color" type="color" value="#26352f">
+              <label for="drawing-size">SIZE</label><select id="drawing-size"><option value="2">Fine</option><option value="4" selected>Medium</option><option value="8">Broad</option><option value="14">Wide</option></select>
+              <button id="drawing-undo" class="button button-outline" type="button">Undo</button><button id="drawing-clear" class="button button-outline" type="button">Clear page</button>
+            </div>
+            <div id="drawing-text-entry" class="drawing-text-entry" style="display:none"><textarea id="drawing-text-value" rows="3" maxlength="1200" placeholder="Type here"></textarea><button id="drawing-insert-text" class="button button-dark" type="button">Insert text</button></div>
+            <p id="drawing-pages-message" class="quiet-message">Scroll down for another page. Changes save automatically.</p>
+            <div id="drawing-pages" class="drawing-pages"></div>
+          </div>
         </section>
 
         <section id="files-panel" class="tool-panel" style="display:none">

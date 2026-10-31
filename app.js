@@ -2,6 +2,15 @@
   var tokenKey = 'pocket-desk-session';
   var token = '';
   var notes = [];
+  var drawings = [];
+  var currentDrawing = null;
+  var drawingPages = [];
+  var activeDrawingPage = 0;
+  var drawingItem = null;
+  var drawingPoint = null;
+  var drawingTimeout = null;
+  var drawingSaving = false;
+  var drawingSaveAgain = false;
   var pairScreen = document.getElementById('pair-screen');
   var deskScreen = document.getElementById('desk-screen');
   var pairError = document.getElementById('pair-error');
@@ -122,6 +131,7 @@
     document.getElementById('tool-picker').value = name;
     if (name === 'files-panel') loadFiles('');
     if (name === 'notes-panel') loadNotes();
+    if (name === 'notes-panel') loadDrawings();
     if (name === 'photo-panel') checkPhotoSetting();
     if (name === 'device-panel') loadDevice();
     if (name === 'games-panel') drawSnake();
@@ -193,6 +203,323 @@
         renderNotes();
       } else text(notesMessage, result.error || 'Could not load notes.');
     });
+  }
+
+  function renderDrawings() {
+    var list = document.getElementById('drawing-list');
+    var i;
+    var row;
+    var title;
+    var details;
+    var actions;
+    var open;
+    var remove;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    if (!drawings.length) {
+      row = document.createElement('li'); row.className = 'quiet-message'; text(row, 'No drawings yet.'); list.appendChild(row); return;
+    }
+    for (i = 0; i < drawings.length; i += 1) {
+      row = document.createElement('li'); row.className = 'note-card';
+      title = document.createElement('h3'); title.className = 'note-title'; text(title, drawings[i].title || 'Untitled drawing');
+      details = document.createElement('p'); details.className = 'note-date'; text(details, drawings[i].pages.length + (drawings[i].pages.length === 1 ? ' page' : ' pages') + ' · ' + formatDate(drawings[i].updated));
+      actions = document.createElement('div'); actions.className = 'note-actions';
+      open = document.createElement('button'); open.type = 'button'; open.className = 'small-action'; open.setAttribute('data-drawing-open', drawings[i].id); text(open, 'Open');
+      remove = document.createElement('button'); remove.type = 'button'; remove.className = 'small-action remove'; remove.setAttribute('data-drawing-delete', drawings[i].id); text(remove, 'Delete');
+      actions.appendChild(open); actions.appendChild(remove); row.appendChild(title); row.appendChild(details); row.appendChild(actions); list.appendChild(row);
+    }
+  }
+
+  function loadDrawings() {
+    request('GET', '/api/drawings', null, function (status, result) {
+      if (status === 200) { drawings = result.drawings || []; renderDrawings(); }
+      else text(document.getElementById('drawings-message'), result.error || 'Could not load drawings.');
+    });
+  }
+
+  function showDrawingEditor(show) {
+    document.getElementById('notes-home').style.display = show ? 'none' : 'block';
+    document.getElementById('drawing-editor').style.display = show ? 'block' : 'none';
+    document.getElementsByClassName('notes-actions')[0].style.display = show ? 'none' : 'block';
+    window.scrollTo(0, 0);
+  }
+
+  function newDrawing() {
+    currentDrawing = { id: '', title: '', pages: [{ items: [] }] };
+    drawingPages = currentDrawing.pages;
+    activeDrawingPage = 0;
+    document.getElementById('drawing-title').value = '';
+    text(document.getElementById('drawing-save-state'), 'New drawing');
+    showDrawingEditor(true);
+    renderDrawingPages();
+    fillDrawingAhead();
+  }
+
+  function openDrawing(id) {
+    var i;
+    for (i = 0; i < drawings.length; i += 1) {
+      if (drawings[i].id !== id) continue;
+      currentDrawing = JSON.parse(JSON.stringify(drawings[i]));
+      drawingPages = currentDrawing.pages;
+      if (!drawingPages.length) drawingPages.push({ items: [] });
+      activeDrawingPage = 0;
+      document.getElementById('drawing-title').value = currentDrawing.title;
+      text(document.getElementById('drawing-save-state'), 'Saved');
+      showDrawingEditor(true);
+      renderDrawingPages();
+      fillDrawingAhead();
+      return;
+    }
+  }
+
+  function drawingChanged() {
+    if (!currentDrawing) return;
+    text(document.getElementById('drawing-save-state'), 'Unsaved changes');
+    if (drawingTimeout) window.clearTimeout(drawingTimeout);
+    drawingTimeout = window.setTimeout(saveDrawingNow, 900);
+  }
+
+  function saveDrawingNow() {
+    if (!currentDrawing) return;
+    if (drawingSaving) { drawingSaveAgain = true; return; }
+    var cleanTitle = document.getElementById('drawing-title').value.replace(/^\s+|\s+$/g, '').slice(0, 80);
+    var hasContent = !!cleanTitle;
+    for (var pageIndex = 0; pageIndex < drawingPages.length; pageIndex += 1) if (drawingPages[pageIndex].items.length) hasContent = true;
+    if (!currentDrawing.id && !hasContent) return;
+    currentDrawing.title = cleanTitle || 'Untitled drawing';
+    currentDrawing.pages = drawingPages;
+    var savingDrawing = currentDrawing;
+    drawingSaving = true;
+    drawingSaveAgain = false;
+    text(document.getElementById('drawing-save-state'), 'Saving…');
+    var method = currentDrawing.id ? 'PUT' : 'POST';
+    var path = currentDrawing.id ? '/api/drawings/' + encodeURIComponent(currentDrawing.id) : '/api/drawings';
+    request(method, path, { title: currentDrawing.title, pages: currentDrawing.pages }, function (status, result) {
+      drawingSaving = false;
+      if (status === 200 || status === 201) {
+        var savedDrawing = result.drawing;
+        if (currentDrawing === savingDrawing) { currentDrawing = savedDrawing; drawingPages = currentDrawing.pages; }
+        var i;
+        for (i = 0; i < drawings.length; i += 1) if (drawings[i].id === savedDrawing.id) drawings.splice(i, 1);
+        drawings.unshift(savedDrawing);
+        renderDrawings();
+        if (currentDrawing === savingDrawing) text(document.getElementById('drawing-save-state'), 'Saved');
+      } else if (currentDrawing === savingDrawing) text(document.getElementById('drawing-save-state'), result.error || 'Could not save');
+      if (drawingSaveAgain) { drawingSaveAgain = false; if (currentDrawing) drawingChanged(); }
+    });
+  }
+
+  function renderDrawingPage(index) {
+    var canvas = document.getElementById('drawing-canvas-' + index);
+    if (!canvas || !canvas.getContext) return;
+    if (canvas.width !== 720 || canvas.height !== 900) { canvas.width = 720; canvas.height = 900; }
+    canvas.style.height = (canvas.clientWidth * 1.25) + 'px';
+    canvas.setAttribute('data-ready', 'yes');
+    var context = canvas.getContext('2d');
+    var items = drawingPages[index].items;
+    var i;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    for (i = 0; i < items.length; i += 1) drawDrawingItem(context, items[i]);
+    if (drawingItem && activeDrawingPage === index && drawingItem.kind !== 'stroke') drawDrawingItem(context, drawingItem);
+  }
+
+  function drawDrawingItem(context, item) {
+    context.save();
+    context.strokeStyle = item.color;
+    context.fillStyle = item.color;
+    context.lineWidth = item.width || 3;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    if (item.kind === 'stroke') {
+      context.beginPath();
+      context.moveTo(item.points[0][0], item.points[0][1]);
+      var i;
+      for (i = 1; i < item.points.length; i += 1) context.lineTo(item.points[i][0], item.points[i][1]);
+      if (item.points.length === 1) context.lineTo(item.points[0][0] + .1, item.points[0][1] + .1);
+      context.stroke();
+    } else if (item.kind === 'line') {
+      context.beginPath(); context.moveTo(item.x1, item.y1); context.lineTo(item.x2, item.y2); context.stroke();
+    } else if (item.kind === 'rect') {
+      context.strokeRect(item.x1, item.y1, item.x2 - item.x1, item.y2 - item.y1);
+    } else if (item.kind === 'ellipse') {
+      var cx = (item.x1 + item.x2) / 2; var cy = (item.y1 + item.y2) / 2;
+      var rx = Math.abs(item.x2 - item.x1) / 2; var ry = Math.abs(item.y2 - item.y1) / 2;
+      context.beginPath(); context.moveTo(cx + rx, cy);
+      context.bezierCurveTo(cx + rx, cy + ry * .5523, cx + rx * .5523, cy + ry, cx, cy + ry);
+      context.bezierCurveTo(cx - rx * .5523, cy + ry, cx - rx, cy + ry * .5523, cx - rx, cy);
+      context.bezierCurveTo(cx - rx, cy - ry * .5523, cx - rx * .5523, cy - ry, cx, cy - ry);
+      context.bezierCurveTo(cx + rx * .5523, cy - ry, cx + rx, cy - ry * .5523, cx + rx, cy);
+      context.stroke();
+    } else if (item.kind === 'text') {
+      context.font = (item.size || 22) + 'px Arial, sans-serif';
+      var lines = item.text.split('\n');
+      var line;
+      for (line = 0; line < lines.length; line += 1) context.fillText(lines[line], item.x, item.y + line * (item.size || 22) * 1.3, 680);
+    }
+    context.restore();
+  }
+
+  function appendDrawingCanvas(index) {
+    var holder = document.createElement('div');
+    var label = document.createElement('div');
+    var canvas = document.createElement('canvas');
+    holder.className = 'drawing-page';
+    label.className = 'drawing-page-label';
+    text(label, 'Page ' + (index + 1));
+    canvas.width = 1; canvas.height = 1; canvas.id = 'drawing-canvas-' + index;
+    canvas.setAttribute('data-drawing-page', String(index));
+    canvas.setAttribute('aria-label', 'Drawing page ' + (index + 1));
+    canvas.addEventListener('mousedown', function (event) { startDrawingInput(canvas, index, event); });
+    canvas.addEventListener('mousemove', function (event) { moveDrawingInput(canvas, index, event); });
+    canvas.addEventListener('mouseup', function (event) { endDrawingInput(canvas, index, event); });
+    canvas.addEventListener('mouseleave', function (event) { endDrawingInput(canvas, index, event); });
+    canvas.addEventListener('touchstart', function (event) { if (event.touches.length) { event.preventDefault(); startDrawingInput(canvas, index, event.touches[0]); } }, false);
+    canvas.addEventListener('touchmove', function (event) { if (event.touches.length) { event.preventDefault(); moveDrawingInput(canvas, index, event.touches[0]); } }, false);
+    canvas.addEventListener('touchend', function (event) { event.preventDefault(); endDrawingInput(canvas, index, event.changedTouches[0]); }, false);
+    canvas.addEventListener('touchcancel', function (event) { endDrawingInput(canvas, index, event.changedTouches[0]); }, false);
+    holder.appendChild(label); holder.appendChild(canvas); document.getElementById('drawing-pages').appendChild(holder);
+    canvas.style.height = (canvas.clientWidth * 1.25) + 'px';
+    var rect = canvas.getBoundingClientRect();
+    if (rect.bottom >= -window.innerHeight && rect.top <= window.innerHeight * 2) renderDrawingPage(index);
+  }
+
+  function renderDrawingPages() {
+    var list = document.getElementById('drawing-pages');
+    while (list.firstChild) list.removeChild(list.firstChild);
+    for (var i = 0; i < drawingPages.length; i += 1) appendDrawingCanvas(i);
+    updateDrawingPageMessage();
+  }
+
+  function drawingCoordinates(canvas, event) {
+    var rect = canvas.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(720, (event.clientX - rect.left) * 720 / rect.width)),
+             y: Math.max(0, Math.min(900, (event.clientY - rect.top) * 900 / rect.height)) };
+  }
+
+  function startDrawingInput(canvas, index, event) {
+    activeDrawingPage = index;
+    var point = drawingCoordinates(canvas, event);
+    var tool = document.getElementById('drawing-tool').value;
+    var color = document.getElementById('drawing-color').value;
+    var width = parseInt(document.getElementById('drawing-size').value, 10) || 4;
+    if (tool === 'text') {
+      drawingPoint = point;
+      document.getElementById('drawing-text-entry').style.display = 'block';
+      document.getElementById('drawing-text-value').focus();
+      return;
+    }
+    drawingItem = { kind: tool === 'pen' || tool === 'eraser' ? 'stroke' : tool, color: tool === 'eraser' ? '#ffffff' : color, width: tool === 'eraser' ? Math.max(14, width * 4) : width };
+    if (tool === 'pen' || tool === 'eraser') {
+      drawingItem.points = [[point.x, point.y]];
+      drawingPages[index].items.push(drawingItem);
+    } else {
+      drawingItem.x1 = point.x; drawingItem.y1 = point.y; drawingItem.x2 = point.x; drawingItem.y2 = point.y;
+    }
+    renderDrawingPage(index);
+  }
+
+  function moveDrawingInput(canvas, index, event) {
+    if (!drawingItem || activeDrawingPage !== index) return;
+    var point = drawingCoordinates(canvas, event);
+    if (drawingItem.kind === 'stroke') {
+      var previous = drawingItem.points[drawingItem.points.length - 1];
+      if (Math.abs(point.x - previous[0]) + Math.abs(point.y - previous[1]) < 2) return;
+      drawingItem.points.push([point.x, point.y]);
+    } else {
+      drawingItem.x2 = point.x; drawingItem.y2 = point.y;
+    }
+    renderDrawingPage(index);
+  }
+
+  function endDrawingInput(canvas, index, event) {
+    if (!drawingItem || activeDrawingPage !== index) return;
+    if (drawingItem.kind !== 'stroke' && event) {
+      var point = drawingCoordinates(canvas, event);
+      drawingItem.x2 = point.x; drawingItem.y2 = point.y;
+      drawingPages[index].items.push(drawingItem);
+    }
+    drawingItem = null;
+    renderDrawingPage(index);
+    drawingChanged();
+  }
+
+  function updateDrawingPageMessage() {
+    text(document.getElementById('drawing-pages-message'), drawingPages.length + (drawingPages.length === 1 ? ' page' : ' pages') + ' · more pages load as you scroll');
+  }
+
+  function fillDrawingAhead() {
+    if (!currentDrawing || document.getElementById('drawing-editor').style.display === 'none' || document.getElementById('notes-panel').style.display === 'none') return;
+    var guard = 0;
+    while (Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) < window.pageYOffset + window.innerHeight + 350 && guard < 4) {
+      drawingPages.push({ items: [] });
+      appendDrawingCanvas(drawingPages.length - 1);
+      guard += 1;
+    }
+    var pageNodes = document.getElementsByClassName('drawing-page');
+    var i;
+    for (i = 0; i < pageNodes.length; i += 1) {
+      if (pageNodes[i].getBoundingClientRect().top <= window.innerHeight / 2) activeDrawingPage = i;
+    }
+    if (guard) {
+      updateDrawingPageMessage();
+      var hasContent = document.getElementById('drawing-title').value.replace(/^\s+|\s+$/g, '') !== '';
+      for (i = 0; i < drawingPages.length; i += 1) if (drawingPages[i].items.length) hasContent = true;
+      if (hasContent) drawingChanged();
+    }
+  }
+
+  function updateDrawingCanvases() {
+    if (!currentDrawing || document.getElementById('drawing-editor').style.display === 'none' || document.getElementById('notes-panel').style.display === 'none') return;
+    var canvases = document.getElementById('drawing-pages').getElementsByTagName('canvas');
+    var i;
+    var rect;
+    for (i = 0; i < canvases.length; i += 1) {
+      rect = canvases[i].getBoundingClientRect();
+      if (rect.bottom >= -window.innerHeight && rect.top <= window.innerHeight * 2) {
+        if (canvases[i].width !== 720 || canvases[i].height !== 900) renderDrawingPage(i);
+        else canvases[i].style.height = (canvases[i].clientWidth * 1.25) + 'px';
+      } else if (canvases[i].width !== 1) {
+        canvases[i].width = 1; canvases[i].height = 1;
+        canvases[i].style.height = (canvases[i].clientWidth * 1.25) + 'px';
+        canvases[i].setAttribute('data-ready', 'no');
+      }
+    }
+  }
+
+  function drawingScroll() { fillDrawingAhead(); updateDrawingCanvases(); }
+
+  function insertDrawingText() {
+    var value = document.getElementById('drawing-text-value').value;
+    if (!currentDrawing || !drawingPoint || !value.replace(/^\s+|\s+$/g, '')) return;
+    var color = document.getElementById('drawing-color').value;
+    var width = parseInt(document.getElementById('drawing-size').value, 10) || 4;
+    drawingPages[activeDrawingPage].items.push({ kind: 'text', text: value, x: drawingPoint.x, y: drawingPoint.y, color: color, width: width, size: 22 });
+    document.getElementById('drawing-text-value').value = '';
+    document.getElementById('drawing-text-entry').style.display = 'none';
+    renderDrawingPage(activeDrawingPage);
+    drawingChanged();
+  }
+
+  function drawingListClick(event) {
+    var target = event.target;
+    var openId = null;
+    var deleteId = null;
+    while (target && target !== this) {
+      if (target.getAttribute) {
+        openId = target.getAttribute('data-drawing-open');
+        deleteId = target.getAttribute('data-drawing-delete');
+        if (openId || deleteId) break;
+      }
+      target = target.parentNode;
+    }
+    if (openId) openDrawing(openId);
+    if (deleteId && window.confirm('Delete this drawing and all its pages?')) {
+      request('DELETE', '/api/drawings/' + encodeURIComponent(deleteId), null, function (status, result) {
+        if (status === 200) { drawings = drawings.filter(function (item) { return item.id !== deleteId; }); renderDrawings(); }
+        else text(document.getElementById('drawings-message'), result.error || 'Could not delete drawing.');
+      });
+    }
   }
 
   function resetNoteForm() {
@@ -891,10 +1218,36 @@
   });
 
   document.getElementById('new-note').addEventListener('click', function () {
+    showDrawingEditor(false);
     resetNoteForm();
     noteForm.style.display = 'block';
     document.getElementById('note-title').focus();
   });
+
+  document.getElementById('new-drawing').addEventListener('click', newDrawing);
+  document.getElementById('drawing-back').addEventListener('click', function () {
+    if (drawingTimeout) window.clearTimeout(drawingTimeout);
+    saveDrawingNow();
+    showDrawingEditor(false);
+    loadDrawings();
+  });
+  document.getElementById('drawing-title').addEventListener('input', drawingChanged);
+  document.getElementById('drawing-tool').addEventListener('change', function () {
+    document.getElementById('drawing-text-entry').style.display = this.value === 'text' ? 'block' : 'none';
+  });
+  document.getElementById('drawing-insert-text').addEventListener('click', insertDrawingText);
+  document.getElementById('drawing-undo').addEventListener('click', function () {
+    if (!drawingPages[activeDrawingPage] || !drawingPages[activeDrawingPage].items.length) return;
+    drawingPages[activeDrawingPage].items.pop(); renderDrawingPage(activeDrawingPage); drawingChanged();
+  });
+  document.getElementById('drawing-clear').addEventListener('click', function () {
+    if (!drawingPages[activeDrawingPage]) return;
+    if (!window.confirm('Clear this page?')) return;
+    drawingPages[activeDrawingPage].items = []; renderDrawingPage(activeDrawingPage); drawingChanged();
+  });
+  document.getElementById('drawing-list').addEventListener('click', drawingListClick);
+  window.addEventListener('scroll', drawingScroll);
+  window.addEventListener('resize', updateDrawingCanvases);
 
   document.getElementById('cancel-note').addEventListener('click', function () {
     noteForm.style.display = 'none';
