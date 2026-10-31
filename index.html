@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#f3efe5">
+  <meta name="description" content="A small private desk for your old iPad and laptop, on your own Wi-Fi.">
+  <title>Pocket Desk — a little room to think</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="masthead">
+      <a class="brand" href="#top" aria-label="Pocket Desk home"><span class="brand-mark" aria-hidden="true"><span></span></span><span class="brand-name">pocket<span>desk</span></span></a>
+      <div class="local-status"><span class="status-lamp" aria-hidden="true"></span><span id="connection-label">ON YOUR WI-FI</span></div>
+    </header>
+
+    <main id="top">
+      <section id="pair-screen" class="welcome">
+        <p class="overline">A LITTLE ROOM TO THINK</p>
+        <h1>Your second<br><em>desk drawer.</em></h1>
+        <p class="welcome-copy">A few useful things, shared between your laptop and this iPad. The notes stay on the laptop. No account, no cloud, no fuss.</p>
+        <div class="pair-paper">
+          <div class="paper-number">01 / PAIR THIS IPAD</div>
+          <p class="pair-instruction">On your laptop, open the Pocket Desk control page and type the six-digit code below.</p>
+          <form id="pair-form">
+            <label for="pair-code">LAPTOP CODE</label>
+            <div class="pair-entry"><input id="pair-code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="· · · · · ·" required><button class="button button-dark" type="submit">Connect <span aria-hidden="true">→</span></button></div>
+            <p id="pair-error" class="form-message" role="alert"></p>
+          </form>
+        </div>
+        <p class="small-note">Only pair on a Wi-Fi network you trust. The code expires after five minutes.</p>
+      </section>
+
+      <section id="desk-screen" class="desk-screen" style="display:none">
+        <div class="desk-heading"><div><p class="overline">YOUR LAPTOP, WITH A LITTLE SPACE</p><h1>Good to have<br><em>you here.</em></h1></div><button id="disconnect-button" class="button button-outline" type="button">Disconnect</button></div>
+        <nav class="tool-tabs" aria-label="Desk tools"><button type="button" class="tool-tab active" data-panel="notes-panel"><span class="tab-index">01</span> Notes</button><button type="button" class="tool-tab" data-panel="files-panel"><span class="tab-index">02</span> File shelf</button><button type="button" class="tool-tab" data-panel="camera-panel"><span class="tab-index">03</span> Camera</button></nav>
+
+        <section id="notes-panel" class="tool-panel">
+          <div class="panel-heading"><div><p class="overline">SCRAPS & REMINDERS</p><h2>Quick notes</h2></div><button id="new-note" class="button button-dark" type="button">＋ New note</button></div>
+          <label class="search-label" for="note-search">FIND A NOTE</label><input id="note-search" class="search-input" type="search" placeholder="A word you remember…">
+          <form id="note-form" class="note-form" style="display:none">
+            <input id="note-id" type="hidden" value="">
+            <label for="note-title">TITLE <span>optional</span></label><input id="note-title" type="text" maxlength="80" placeholder="A thought to keep">
+            <label for="note-body">YOUR NOTE</label><textarea id="note-body" rows="4" maxlength="1200" placeholder="Write it down before it wanders off…" required></textarea>
+            <p id="note-error" class="form-message" role="alert"></p>
+            <div class="form-actions"><button id="cancel-note" class="button button-outline" type="button">Cancel</button><button class="button button-dark" type="submit">Save on laptop</button></div>
+          </form>
+          <p id="notes-message" class="quiet-message" role="status"></p>
+          <ul id="note-list" class="note-list"></ul>
+        </section>
+
+        <section id="files-panel" class="tool-panel" style="display:none">
+          <div class="panel-heading"><div><p class="overline">ONE FOLDER, CHOSEN BY YOU</p><h2>File shelf</h2></div><span class="shelf-stamp">READ ONLY</span></div>
+          <p class="panel-copy">Browse and download from the folder your laptop owner chose. Nothing can be uploaded, changed, or deleted from here.</p>
+          <div id="file-path" class="file-path">Shared folder</div>
+          <p id="files-message" class="quiet-message" role="status"></p>
+          <ul id="file-list" class="file-list"></ul>
+        </section>
+
+        <section id="camera-panel" class="tool-panel" style="display:none">
+          <div class="panel-heading"><div><p class="overline">A DELIBERATE PAUSE</p><h2>Laptop camera</h2></div><span class="shelf-stamp muted-stamp">OFF</span></div>
+          <div class="camera-note"><span class="camera-drawing" aria-hidden="true"><span></span></span><h3>No camera access here.</h3><p>This iPad runs iOS 9 Safari, which predates Safari’s WebRTC camera support. The local Wi-Fi connection is also plain HTTP, so a modern browser cannot safely open the laptop camera from this address either.</p><p>Pocket Desk does not request camera permission, take pictures, record sound, or run a camera in the background. Keep using the notes and file shelf; they work without it.</p><p class="source-note">Camera support arrived in Safari 11 / iOS 11. This desk stays camera-free for this setup.</p></div>
+        </section>
+        <footer class="desk-footer"><span><span class="status-lamp" aria-hidden="true"></span> SAVED ON THE LAPTOP</span><span>POCKET DESK · LOCAL ONLY</span></footer>
+      </section>
+    </main>
+    <footer class="welcome-footer">Made for the space beside your keyboard.</footer>
+  </div>
+</body>
+</html>
