@@ -9,6 +9,23 @@
   var noteList = document.getElementById('note-list');
   var noteForm = document.getElementById('note-form');
   var noteSearch = document.getElementById('note-search');
+  var clock24 = true;
+  var timerRemaining = 300000;
+  var timerDeadline = 0;
+  var timerRunning = false;
+  var snakeTimer = null;
+  var snake = [];
+  var snakeFood = { x: 8, y: 8 };
+  var snakeDirection = { x: 1, y: 0 };
+  var snakeNextDirection = { x: 1, y: 0 };
+  var snakePoints = 0;
+  var footballKicks = 0;
+  var footballGoals = 0;
+  var hoopPosition = 10;
+  var hoopDirection = 1;
+  var hoopPoints = 0;
+  var hoopEnd = 0;
+  var hoopRunning = false;
 
   function readToken() {
     try { return window.localStorage.getItem(tokenKey) || ''; }
@@ -63,7 +80,7 @@
   }
 
   function setPanel(name) {
-    var panels = ['notes-panel', 'files-panel', 'photo-panel', 'device-panel', 'voice-panel'];
+    var panels = ['clock-panel', 'games-panel', 'notes-panel', 'files-panel', 'photo-panel', 'device-panel', 'theme-panel', 'voice-panel'];
     var i;
     var panel;
     var tabs = document.getElementsByClassName('tool-tab');
@@ -78,6 +95,7 @@
     if (name === 'notes-panel') loadNotes();
     if (name === 'photo-panel') checkPhotoSetting();
     if (name === 'device-panel') loadDevice();
+    if (name === 'games-panel') drawSnake();
   }
 
   function renderNotes() {
@@ -238,6 +256,230 @@
     });
   }
 
+  function clockTick() {
+    var now = new Date();
+    var hours = now.getHours();
+    var suffix = '';
+    if (!clock24) {
+      suffix = hours >= 12 ? ' PM' : ' AM';
+      hours = hours % 12 || 12;
+    }
+    text(document.getElementById('clock-time'), pad(hours) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds()) + suffix);
+    text(document.getElementById('clock-date'), ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()] + ', ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.getMonth()] + ' ' + now.getDate());
+    if (timerRunning) {
+      timerRemaining = Math.max(0, timerDeadline - (+new Date()));
+      if (!timerRemaining) {
+        timerRunning = false;
+        text(document.getElementById('timer-message'), 'Time is up. Take a breath.');
+        document.getElementById('timer-toggle').textContent = 'Start timer';
+        saveTimer();
+      }
+      renderTimer();
+    }
+    if (hoopRunning) {
+      hoopPosition += hoopDirection * 2.1;
+      if (hoopPosition >= 91) { hoopPosition = 91; hoopDirection = -1; }
+      if (hoopPosition <= 3) { hoopPosition = 3; hoopDirection = 1; }
+      document.getElementById('hoop-target').style.left = hoopPosition + '%';
+      if (+new Date() >= hoopEnd) {
+        hoopRunning = false;
+        text(document.getElementById('hoop-score'), 'Final score: ' + hoopPoints + ' · Play again?');
+        document.getElementById('hoop-shoot').textContent = 'Play again';
+      }
+    }
+  }
+
+  function pad(value) { return value < 10 ? '0' + value : String(value); }
+
+  function renderTimer() {
+    var total = Math.ceil(timerRemaining / 1000);
+    text(document.getElementById('timer-readout'), pad(Math.floor(total / 60)) + ':' + pad(total % 60));
+  }
+
+  function saveTimer() {
+    try { window.localStorage.setItem('pocket-desk-timer', JSON.stringify({ remaining: timerRemaining, deadline: timerDeadline, running: timerRunning })); } catch (error) {}
+  }
+
+  function loadTimer() {
+    try {
+      var saved = JSON.parse(window.localStorage.getItem('pocket-desk-timer') || 'null');
+      if (saved && typeof saved.remaining === 'number') {
+        timerRunning = !!saved.running;
+        timerDeadline = saved.deadline || 0;
+        timerRemaining = timerRunning ? Math.max(0, timerDeadline - (+new Date())) : saved.remaining;
+        if (!timerRemaining) timerRunning = false;
+        document.getElementById('timer-minutes').value = Math.floor(timerRemaining / 60000);
+        document.getElementById('timer-seconds').value = Math.floor((timerRemaining % 60000) / 1000);
+        document.getElementById('timer-toggle').textContent = timerRunning ? 'Pause timer' : 'Start timer';
+        if (saved.running && !timerRunning) text(document.getElementById('timer-message'), 'Timer finished while the desk was away.');
+      }
+    } catch (error) {}
+    renderTimer();
+  }
+
+  function applyTheme(theme, save) {
+    var themes = ['paper', 'midnight', 'ocean', 'grove', 'rose'];
+    var i;
+    if (themes.indexOf(theme) === -1) theme = 'paper';
+    for (i = 0; i < themes.length; i += 1) document.body.className = document.body.className.replace(new RegExp('(^|\\s)theme-' + themes[i] + '(?=\\s|$)', 'g'), ' ');
+    if (theme !== 'paper' && themes.indexOf(theme) !== -1) document.body.className += ' theme-' + theme;
+    var buttons = document.querySelectorAll('[data-theme-choice]');
+    for (i = 0; i < buttons.length; i += 1) {
+      buttons[i].className = buttons[i].getAttribute('data-theme-choice') === theme ? 'theme-selected' : '';
+      buttons[i].setAttribute('aria-pressed', buttons[i].getAttribute('data-theme-choice') === theme ? 'true' : 'false');
+    }
+    if (save) { try { window.localStorage.setItem('pocket-desk-theme', theme); } catch (error) {} }
+  }
+
+  function drawSnake() {
+    var canvas = document.getElementById('snake-board');
+    if (!canvas || !canvas.getContext) return;
+    var ctx = canvas.getContext('2d');
+    var i;
+    ctx.fillStyle = document.body.className.indexOf('theme-midnight') >= 0 ? '#202527' : '#e7e6da';
+    ctx.fillRect(0, 0, 240, 240);
+    ctx.fillStyle = '#b66c51';
+    ctx.fillRect(snakeFood.x * 12 + 2, snakeFood.y * 12 + 2, 8, 8);
+    ctx.fillStyle = '#4e7058';
+    for (i = 0; i < snake.length; i += 1) ctx.fillRect(snake[i].x * 12 + 1, snake[i].y * 12 + 1, 10, 10);
+  }
+
+  function startSnake() {
+    if (snakeTimer) { window.clearInterval(snakeTimer); snakeTimer = null; }
+    snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+    snakeDirection = { x: 1, y: 0 };
+    snakeNextDirection = { x: 1, y: 0 };
+    snakePoints = 0;
+    placeFood();
+    text(document.getElementById('snake-score'), 'Score 0');
+    document.getElementById('snake-start').textContent = 'Restart Snake';
+    drawSnake();
+    snakeTimer = window.setInterval(snakeStep, 170);
+  }
+
+  function placeFood() {
+    snakeFood = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) };
+  }
+
+  function snakeStep() {
+    var head = { x: snake[0].x + snakeNextDirection.x, y: snake[0].y + snakeNextDirection.y };
+    var i;
+    snakeDirection = snakeNextDirection;
+    if (head.x < 0 || head.y < 0 || head.x >= 20 || head.y >= 20) return endSnake();
+    for (i = 0; i < snake.length; i += 1) if (head.x === snake[i].x && head.y === snake[i].y) return endSnake();
+    snake.unshift(head);
+    if (head.x === snakeFood.x && head.y === snakeFood.y) { snakePoints += 1; placeFood(); text(document.getElementById('snake-score'), 'Score ' + snakePoints); }
+    else snake.pop();
+    drawSnake();
+  }
+
+  function endSnake() {
+    window.clearInterval(snakeTimer);
+    snakeTimer = null;
+    text(document.getElementById('snake-score'), 'Game over · score ' + snakePoints);
+  }
+
+  function chooseDirection(name) {
+    var choices = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+    var next = choices[name];
+    if (next && (next.x !== -snakeDirection.x || next.y !== -snakeDirection.y)) snakeNextDirection = next;
+  }
+
+  function footballShot(shot) {
+    if (footballKicks >= 5) return;
+    var keeper = ['left', 'center', 'right'][Math.floor(Math.random() * 3)];
+    footballKicks += 1;
+    if (shot !== keeper) footballGoals += 1;
+    text(document.getElementById('football-score'), (shot !== keeper ? 'GOAL! ' : 'Saved! ') + footballGoals + ' / ' + footballKicks + ' · ' + (5 - footballKicks) + ' kicks left');
+    if (footballKicks === 5) text(document.getElementById('football-score'), 'Full time · ' + footballGoals + ' goals from 5 kicks');
+  }
+
+  function startHoop() {
+    hoopPoints = 0;
+    hoopRunning = true;
+    hoopEnd = +new Date() + 20000;
+    document.getElementById('hoop-shoot').textContent = 'Shoot!';
+    text(document.getElementById('hoop-score'), 'Score 0 · 20 seconds');
+  }
+
+  function shootHoop() {
+    if (!hoopRunning) return startHoop();
+    var distance = Math.abs(hoopPosition - 50);
+    if (distance < 10) hoopPoints += 3;
+    else if (distance < 22) hoopPoints += 2;
+    text(document.getElementById('hoop-score'), 'Score ' + hoopPoints + ' · ' + Math.max(0, Math.ceil((hoopEnd - (+new Date())) / 1000)) + ' seconds');
+  }
+
+  document.getElementById('clock-format').addEventListener('click', function () {
+    clock24 = !clock24;
+    this.textContent = clock24 ? 'Switch to 12-hour' : 'Switch to 24-hour';
+    try { window.localStorage.setItem('pocket-desk-clock-format', clock24 ? '24' : '12'); } catch (error) {}
+    clockTick();
+  });
+  document.getElementById('timer-toggle').addEventListener('click', function () {
+    if (timerRunning) {
+      timerRemaining = Math.max(0, timerDeadline - (+new Date()));
+      timerRunning = false;
+      text(document.getElementById('timer-message'), 'Timer paused.');
+    } else {
+      if (!timerRemaining) {
+        var minutes = parseInt(document.getElementById('timer-minutes').value, 10) || 0;
+        var seconds = parseInt(document.getElementById('timer-seconds').value, 10) || 0;
+        minutes = Math.max(0, Math.min(599, minutes));
+        seconds = Math.max(0, Math.min(59, seconds));
+        timerRemaining = (minutes * 60 + seconds) * 1000;
+      }
+      if (!timerRemaining) { text(document.getElementById('timer-message'), 'Set a time longer than zero first.'); return; }
+      timerDeadline = (+new Date()) + timerRemaining;
+      timerRunning = true;
+      text(document.getElementById('timer-message'), 'Timer is running. Keep this page open.');
+    }
+    this.textContent = timerRunning ? 'Pause timer' : 'Start timer';
+    saveTimer();
+  });
+  document.getElementById('timer-reset').addEventListener('click', function () {
+    timerRunning = false;
+    timerDeadline = 0;
+    var minutes = Math.max(0, Math.min(599, parseInt(document.getElementById('timer-minutes').value, 10) || 0));
+    var seconds = Math.max(0, Math.min(59, parseInt(document.getElementById('timer-seconds').value, 10) || 0));
+    timerRemaining = (minutes * 60 + seconds) * 1000;
+    document.getElementById('timer-toggle').textContent = 'Start timer';
+    text(document.getElementById('timer-message'), 'Timer reset.');
+    renderTimer();
+    saveTimer();
+  });
+  document.getElementById('timer-minutes').addEventListener('change', function () { if (!timerRunning) document.getElementById('timer-reset').click(); });
+  document.getElementById('timer-seconds').addEventListener('change', function () { if (!timerRunning) document.getElementById('timer-reset').click(); });
+  document.getElementById('snake-start').addEventListener('click', startSnake);
+  document.getElementsByClassName('game-pad')[0].addEventListener('click', function (event) {
+    var direction = event.target.getAttribute('data-direction');
+    if (direction) chooseDirection(direction);
+  });
+  document.getElementsByClassName('game-switch')[0].addEventListener('click', function (event) {
+    var game = event.target.getAttribute('data-game');
+    var choices = document.getElementsByClassName('game-choice');
+    var panels = ['snake-game', 'football-game', 'hoop-game'];
+    var i;
+    if (!game) return;
+    for (i = 0; i < panels.length; i += 1) document.getElementById(panels[i]).style.display = panels[i] === game ? 'block' : 'none';
+    for (i = 0; i < choices.length; i += 1) choices[i].className = choices[i] === event.target ? 'game-choice active' : 'game-choice';
+    if (game === 'snake-game') drawSnake();
+  });
+  document.getElementsByClassName('shot-choices')[0].addEventListener('click', function (event) {
+    var shot = event.target.getAttribute('data-shot');
+    if (shot) footballShot(shot);
+  });
+  document.getElementById('football-reset').addEventListener('click', function () {
+    footballKicks = 0;
+    footballGoals = 0;
+    text(document.getElementById('football-score'), 'Choose a corner to take your first kick.');
+  });
+  document.getElementById('hoop-shoot').addEventListener('click', shootHoop);
+  document.getElementsByClassName('theme-options')[0].addEventListener('click', function (event) {
+    var choice = event.target.getAttribute('data-theme-choice');
+    if (!choice && event.target.parentNode) choice = event.target.parentNode.getAttribute('data-theme-choice');
+    if (choice) applyTheme(choice, true);
+  });
   document.getElementById('refresh-device').addEventListener('click', loadDevice);
   document.getElementById('photo-file').addEventListener('change', function () {
     var file = this.files && this.files[0];
@@ -358,6 +600,14 @@
     else if (parent !== null) loadFiles(parent);
   });
 
+  var savedTheme = 'paper';
+  try { savedTheme = window.localStorage.getItem('pocket-desk-theme') || 'paper'; } catch (error) {}
+  try { clock24 = window.localStorage.getItem('pocket-desk-clock-format') !== '12'; } catch (error) {}
+  document.getElementById('clock-format').textContent = clock24 ? 'Switch to 12-hour' : 'Switch to 24-hour';
+  applyTheme(savedTheme, false);
+  loadTimer();
+  clockTick();
+  window.setInterval(clockTick, 500);
   token = readToken();
   if (token) {
     showDesk(true);
