@@ -18,7 +18,7 @@ class PocketDeskWindow:
         self.shared = tk.StringVar()
         self.photos = tk.StringVar()
         self.host = tk.StringVar(value="127.0.0.1")
-        self.address = tk.StringVar(value="Start Pocket Desk to see the iPad address.")
+        self.address = tk.StringVar(value="Start Pocket Desk to see the workspace address.")
         self.code = tk.StringVar(value="——————")
         self.state = tk.StringVar(value="OFF")
         self.build()
@@ -30,22 +30,22 @@ class PocketDeskWindow:
         frame = ttk.Frame(self.root, padding=28)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="POCKET DESK", font=("Georgia", 24, "bold")).pack(anchor="w")
-        ttk.Label(frame, text="A small local desk for your iPad and laptop", foreground="#66736b").pack(anchor="w", pady=(3, 20))
-        self.field(frame, "FOLDER THE IPAD CAN BROWSE", self.shared, self.choose_shared)
+        ttk.Label(frame, text="A private workspace for your devices", foreground="#66736b").pack(anchor="w", pady=(3, 20))
+        self.field(frame, "READ-ONLY FILE FOLDER", self.shared, self.choose_shared)
         self.field(frame, "OPTIONAL PHOTO DESTINATION (UPLOADS OFF IF EMPTY)", self.photos, self.choose_photos)
         ttk.Label(frame, text="LAPTOP WI-FI IPv4 ADDRESS", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(15, 5))
         ttk.Entry(frame, textvariable=self.host).pack(fill="x")
-        ttk.Label(frame, text="Use 127.0.0.1 for laptop-only testing. For iPad access, enter the Wi-Fi IPv4 shown by ipconfig.", wraplength=540, foreground="#66736b").pack(anchor="w", pady=(5, 14))
+        ttk.Label(frame, text="Use 127.0.0.1 on this computer only. To connect a phone or tablet, enter the Wi-Fi IPv4 shown by ipconfig.", wraplength=540, foreground="#66736b").pack(anchor="w", pady=(5, 14))
         self.start_button = ttk.Button(frame, text="Start Pocket Desk", command=self.start)
         self.start_button.pack(anchor="w", pady=(0, 14))
         ttk.Separator(frame).pack(fill="x", pady=8)
         ttk.Label(frame, text="STATUS", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(6, 3))
         ttk.Label(frame, textvariable=self.state, font=("Segoe UI", 12, "bold")).pack(anchor="w")
-        ttk.Label(frame, text="IPAD ADDRESS", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(14, 3))
+        ttk.Label(frame, text="WORKSPACE ADDRESS", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(14, 3))
         ttk.Label(frame, textvariable=self.address, font=("Consolas", 11)).pack(anchor="w")
         ttk.Label(frame, text="PAIRING CODE", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(14, 3))
         ttk.Label(frame, textvariable=self.code, font=("Consolas", 29, "bold")).pack(anchor="w")
-        self.disconnect_button = ttk.Button(frame, text="Disconnect iPad", command=self.disconnect, state="disabled")
+        self.disconnect_button = ttk.Button(frame, text="Disconnect device", command=self.disconnect, state="disabled")
         self.disconnect_button.pack(anchor="w", pady=(9, 12))
         ttk.Label(frame, text="The photo folder is separate from the read-only shelf. Choose it only if you want to allow confirmed photo uploads. Nothing changes your firewall or router.", wraplength=540, foreground="#66736b").pack(anchor="w")
 
@@ -57,12 +57,12 @@ class PocketDeskWindow:
         ttk.Button(row, text="Choose…", command=action).pack(side="left", padx=(7, 0))
 
     def choose_shared(self):
-        choice = filedialog.askdirectory(title="Choose the read-only file shelf")
+        choice = filedialog.askdirectory(title="Choose the read-only files folder")
         if choice:
             self.shared.set(choice)
 
     def choose_photos(self):
-        choice = filedialog.askdirectory(title="Choose where confirmed iPad photos will be saved")
+        choice = filedialog.askdirectory(title="Choose where confirmed photos will be saved")
         if choice:
             self.photos.set(choice)
 
@@ -104,7 +104,7 @@ class PocketDeskWindow:
                 self.process.kill()
         self.process = None
         self.state.set("OFF")
-        self.address.set("Start Pocket Desk to see the iPad address.")
+        self.address.set("Start Pocket Desk to see the workspace address.")
         self.code.set("——————")
         self.start_button.configure(text="Start Pocket Desk", command=self.start)
         self.disconnect_button.configure(state="disabled")
@@ -131,7 +131,7 @@ class PocketDeskWindow:
                 status = json.loads(response.read().decode("utf-8"))
                 response.close()
                 if status.get("paired"):
-                    self.state.set("IPAD PAIRED")
+                    self.state.set("DEVICE CONNECTED")
                     self.code.set("CONNECTED")
                     self.disconnect_button.configure(state="normal")
                 else:

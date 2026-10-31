@@ -78,6 +78,7 @@ input:focus,textarea:focus,button:focus { outline: 2px solid #aa674e; outline-of
 .file-path { padding: 9px 11px; border-left: 3px solid #4e7058; background: #e8e7dc; color: #526257; font: 11px "Courier New", monospace; word-wrap: break-word; }
 .file-row { padding: 0; }
 .file-link,.folder-button { display: block; width: 100%; padding: 13px 14px; border: 0; background: transparent; color: #344d3f; font: 13px "Trebuchet MS", Arial, sans-serif; text-align: left; text-decoration: none; cursor: pointer; word-wrap: break-word; }
+.file-download { display: inline-block; margin: 0 14px 11px; color: #526b60; font: 11px Arial, sans-serif; text-decoration: underline; }
 .file-link:hover,.folder-button:hover { background: #eeece4; }
 .file-kind { float: right; color: #929286; font: 9px "Courier New", monospace; }
 .back-folder { margin: 11px 0; padding: 7px 10px; border: 1px solid #d2cec2; background: transparent; color: #56675b; font: 10px "Courier New", monospace; cursor: pointer; }
@@ -103,9 +104,6 @@ input:focus,textarea:focus,button:focus { outline: 2px solid #aa674e; outline-of
 .timer-inputs { float: right; margin-top: 8px; color: #69756c; font: 9px "Courier New", monospace; }
 .timer-inputs input { width: 54px; height: 36px; margin: 0 5px; border: 1px solid #d7d3c9; padding: 5px; background: #fffdf8; color: #26352f; font: 16px "Courier New", monospace; text-align: center; }
 .timer-readout { clear: both; padding-top: 20px; color: #344d3f; font: 52px "Courier New", monospace; }
-.game-switch { margin: 18px 0; border-bottom: 1px solid #d7d2c6; }
-.game-choice { min-height: 42px; padding: 9px 13px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #747d72; font: 13px Georgia, "Times New Roman", serif; }
-.game-choice.active { border-bottom-color: #b66c51; color: #26352f; }
 .game-card > p { color: #66736b; font-size: 13px; }
 #snake-board { display: block; width: 240px; max-width: 100%; height: auto; margin: 15px auto; border: 1px solid #d0cec3; }
 .game-score { min-height: 20px; color: #4e7058 !important; font: 11px "Courier New", monospace; }
@@ -136,8 +134,8 @@ body.theme-midnight .brand,body.theme-midnight h1,body.theme-midnight .panel-hea
 body.theme-midnight .pair-paper,body.theme-midnight .note-form,body.theme-midnight .note-card,body.theme-midnight .file-row,body.theme-midnight .camera-note,body.theme-midnight .timer-card,body.theme-midnight .game-card,body.theme-midnight .theme-options button { background: #242b27; border-color: #39443d; color: #e9eee9; }
 body.theme-midnight .search-input,body.theme-midnight .note-form input,body.theme-midnight .note-form textarea,body.theme-midnight .timer-inputs input { background: #171c1a; border-color: #46544b; color: #edf0e9; }
 body.theme-midnight .clock-face { background: #080b0a; }
-body.theme-midnight .tool-tab,body.theme-midnight .game-choice { color: #aebbb0; }
-body.theme-midnight .tool-tab.active,body.theme-midnight .game-choice.active { color: #f3efe5; }
+body.theme-midnight .tool-tab { color: #aebbb0; }
+body.theme-midnight .tool-tab.active { color: #f3efe5; }
 body.theme-midnight .tool-tab.active { border-bottom-color: #cf8968; }
 body.theme-midnight h1 em,body.theme-midnight .note-title,body.theme-midnight .timer-readout { color: #a9c990; }
 body.theme-midnight .hoop-court { background: #303a35; }
@@ -156,6 +154,53 @@ body.theme-rose .pair-paper,body.theme-rose .note-form,body.theme-rose .note-car
 body.theme-rose h1 em,body.theme-rose .note-title,body.theme-rose .timer-readout { color: #a45f58; }
 body.theme-rose .clock-face { background: #44332f; }
 body.theme-rose .tool-tab.active { border-bottom-color: #b96d62; }
+.tool-picker-label,.tool-picker { display: none; }
+.game-picker-label { display: block; margin: 18px 0 6px; color: #66746b; font: 10px "Courier New", monospace; letter-spacing: 1px; }
+.game-picker { width: 100%; max-width: 360px; min-height: 43px; padding: 8px 10px; border: 1px solid #d7d3c9; background: #fffdf8; color: #26352f; font: 15px Arial, sans-serif; }
+.mini-game { max-width: 560px; }
+.ttt-board,.memory-board,.tiles-board { max-width: 330px; margin: 18px auto; text-align: center; }
+.ttt-board button { display: inline-block; width: 31%; height: 76px; margin: 1%; border: 1px solid #d0cdc1; background: #fffdf8; color: #344d3f; font-size: 32px; vertical-align: top; }
+.memory-card { display: inline-block; width: 22%; min-height: 59px; margin: 1%; border: 1px solid #d0cdc1; background: #eeece4; color: #344d3f; font-size: 21px; vertical-align: top; }
+.memory-card.memory-open { background: #d8e3d8; }
+.memory-card.memory-found { background: #dce8ed; color: #526b71; }
+.tiles-board { padding: 5px; background: #bbb5a9; }
+.tile-cell { display: inline-block; width: 22%; height: 63px; margin: 1%; padding-top: 14px; background: #e4dfd4; color: #38433b; font: bold 24px Arial, sans-serif; vertical-align: top; }
+.tile-v2 { background: #f4f0e7; }
+.tile-v4 { background: #e9e1ca; }
+.tile-v8,.tile-v16 { background: #cf9a70; color: white; }
+.tile-v32,.tile-v64 { background: #b66c51; color: white; }
+.tile-v128,.tile-v256,.tile-v512,.tile-v1024,.tile-v2048 { background: #4e7058; color: white; }
+.reaction-pad,.sprint-pad { display: block; width: 100%; min-height: 125px; margin: 20px 0; border: 1px solid #d0cdc1; background: #e9e5db; color: #344d3f; font: 18px Arial, sans-serif; }
+.reaction-pad.reaction-wait { background: #bd8057; color: white; }
+.reaction-pad.reaction-ready { background: #4e805d; color: white; }
+.simon-board { max-width: 330px; margin: 18px auto; text-align: center; }
+.simon-board button { display: inline-block; width: 43%; height: 90px; margin: 2%; border: 1px solid #b7beb6; background: #d8e0d6; color: #344d3f; font-size: 21px; }
+.simon-board button:nth-child(2),.simon-board button:nth-child(3) { background: #e9d8d2; }
+.simon-board button.simon-lit { border: 3px solid #344d3f; background: #bdcfae; }
+.game-input { width: 100%; max-width: 240px; min-height: 43px; margin: 8px 8px 8px 0; padding: 8px; border: 1px solid #d7d3c9; font: 17px Arial, sans-serif; }
+.word-scramble { margin: 24px 0; color: #344d3f; font: bold 30px "Courier New", monospace; letter-spacing: 6px; text-align: center; }
+.higher-card { width: 112px; height: 142px; margin: 18px auto; padding-top: 32px; border: 2px solid #d0cdc1; border-radius: 8px; background: #fffdf8; color: #344d3f; font: 56px Georgia, serif; text-align: center; }
+html { background: #f5f6f6; }
+body { background: #f5f6f6; color: #202826; font-family: Arial, Helvetica, sans-serif; }
+.brand,.desk-heading h1,.welcome h1,.panel-heading h2,.camera-note h3,.timer-card h3,.game-card h3 { font-family: Arial, Helvetica, sans-serif; letter-spacing: 0; }
+.brand-name,.note-title,.pair-instruction,.file-link,.folder-button,.button,.game-score,.timer-readout { font-family: Arial, Helvetica, sans-serif; }
+.overline,.paper-number,.pair-form label,.note-form label,.search-label,.shelf-stamp,.file-kind,.host-only,.host-state,.pairing-code,.code-expiry,.paired-label { font-family: Arial, Helvetica, sans-serif; letter-spacing: .5px; }
+.welcome h1 { font-size: 42px; font-weight: 600; }
+.desk-heading h1 { font-size: 30px; font-weight: 600; }
+.panel-heading h2 { font-size: 27px; font-weight: 600; }
+.camera-note h3,.timer-card h3,.game-card h3 { font-size: 21px; font-weight: 600; }
+.welcome-copy,.camera-note p,.panel-copy,.game-card p { color: #596461; }
+.pair-paper,.note-form,.camera-note,.timer-card,.game-card,.theme-options button { border-color: #d9dfdc; border-radius: 6px; background: #fff; box-shadow: none; }
+.button,.pair-entry input,.search-input,.note-form input[type=text],.note-form textarea,.game-picker,.ttt-board button,.memory-card,.game-pad button,.shot-choices button { border-radius: 5px; }
+.button-dark { background: #315b4b; }
+.button-dark:hover { background: #25483a; }
+.clock-face { border-radius: 8px; background: #1d2925; }
+.clock-time { font-family: Arial, Helvetica, sans-serif; font-weight: 500; }
+.tool-tab { font-family: Arial, Helvetica, sans-serif; }
+.note-card,.file-row { background: #fff; }
+.file-link { color: #263b34; }
+.file-download { margin-left: 14px; }
+.pair-paper { box-shadow: none; }
 .desk-footer { padding: 13px 0 23px; border-top: 1px solid #d7d2c6; color: #7c837a; font: 9px "Courier New", monospace; letter-spacing: .5px; overflow: hidden; }
 .desk-footer span:first-child { float: left; }
 .desk-footer span:last-child { float: right; }
@@ -209,4 +254,12 @@ body.theme-rose .tool-tab.active { border-bottom-color: #b96d62; }
   .host-only { top: 66px; left: 0; right: auto; font-size: 8px; }
   .host-panel { margin-top: 47px; padding: 24px 19px; }
   .host-panel h1 { font-size: 37px; }
+  .tool-tabs { display: none; }
+  .tool-picker-label { display: block; margin: 0 0 5px; color: #66746b; font: 10px "Courier New", monospace; letter-spacing: 1px; }
+  .tool-picker { display: block; width: 100%; min-height: 42px; margin-bottom: 4px; padding: 8px 10px; border: 1px solid #d7d3c9; border-radius: 5px; background: #fff; color: #26352f; font: 15px Arial, sans-serif; }
+  .clock-panel { min-height: calc(100vh - 270px); }
+  .clock-face { min-height: 280px; }
+  .clock-time { font-size: 54px; }
+  .clock-time.compact-clock { font-size: 40px; }
+  .tile-cell { height: 56px; padding-top: 13px; font-size: 21px; }
 }

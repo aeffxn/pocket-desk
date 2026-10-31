@@ -19,6 +19,16 @@ SESSION_SECONDS = 8 * 60 * 60
 PAIR_SECONDS = 5 * 60
 MAX_BODY = 12 * 1024 * 1024
 MAX_PHOTO_BYTES = 8 * 1024 * 1024
+PREVIEW_TYPES = {
+    ".pdf": "application/pdf", ".txt": "text/plain", ".md": "text/plain",
+    ".json": "text/plain", ".csv": "text/csv", ".log": "text/plain",
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".gif": "image/gif", ".webp": "image/webp"
+}
+
+
+def file_mime(path):
+    return PREVIEW_TYPES.get(Path(path).suffix.lower()) or mimetypes.guess_type(str(path))[0] or "application/octet-stream"
 
 
 def data_directory():
@@ -58,6 +68,7 @@ class DeskState:
         self.session_token = ""
         self.session_expires = 0
         self.failures = {}
+        self.file_tickets = {}
         self.new_pair_code()
 
     def read_notes(self):
@@ -101,6 +112,7 @@ class DeskState:
         if self.session_token and time.time() >= self.session_expires:
             self.session_token = ""
             self.session_expires = 0
+            self.file_tickets = {}
             self.new_pair_code()
 
     def status(self):
@@ -124,7 +136,7 @@ class DeskState:
             if len(history) >= 5:
                 return None, "Too many tries. Wait a minute and ask the laptop for a fresh code."
             if self.session_token:
-                return None, "An iPad is already paired. Disconnect it from the laptop first."
+                return None, "A device is already connected. Disconnect it first."
             if current >= self.code_expires or not hmac.compare_digest(str(supplied_code), self.pair_code):
                 history.append(current)
                 self.failures[address] = history
@@ -147,7 +159,29 @@ class DeskState:
         with self.lock:
             self.session_token = ""
             self.session_expires = 0
+            self.file_tickets = {}
             self.new_pair_code()
+
+    def create_file_ticket(self, relative_path, inline, address):
+        target = self.safe_path(relative_path)
+        if not target.is_file():
+            raise ValueError("That shelf item is not a file.")
+        if inline and target.suffix.lower() not in PREVIEW_TYPES:
+            raise ValueError("This file type cannot be previewed in the browser. Download it instead.")
+        ticket = secrets.token_urlsafe(24)
+        with self.lock:
+            expiry = time.time() + 60
+            for old_ticket in [key for key, item in self.file_tickets.items() if item[3] <= time.time()]:
+                self.file_tickets.pop(old_ticket, None)
+            self.file_tickets[ticket] = (target, inline, str(address), expiry)
+        return ticket
+
+    def consume_file_ticket(self, ticket, address):
+        with self.lock:
+            item = self.file_tickets.pop(ticket, None)
+            if not item or item[3] <= time.time() or item[2] != str(address):
+                return None
+            return item[0], item[1]
 
     def safe_path(self, relative_path):
         if not isinstance(relative_path, str) or "\x00" in relative_path or "\\" in relative_path:
@@ -179,7 +213,8 @@ class DeskState:
                     entries.append({"name": child.name, "path": relative, "type": "folder", "size_label": "FOLDER"})
                 else:
                     size = target.stat().st_size
-                    entries.append({"name": child.name, "path": relative, "type": "file", "size_label": self.size_label(size)})
+                    can_preview = target.suffix.lower() in PREVIEW_TYPES
+                    entries.append({"name": child.name, "path": relative, "type": "file", "size_label": self.size_label(size), "can_preview": can_preview})
             except (OSError, ValueError):
                 continue
         entries.sort(key=lambda entry: (entry["type"] != "folder", entry["name"].casefold()))
@@ -238,7 +273,7 @@ class BaseHandler(http.server.SimpleHTTPRequestHandler):
     def auth_required(self):
         if self.server.state.is_paired(self.bearer_token()):
             return True
-        self.send_json(401, {"error": "This iPad is not paired anymore."})
+        self.send_json(401, {"error": "This device is no longer connected."})
         return False
 
     def api_path(self):
@@ -248,6 +283,8 @@ class BaseHandler(http.server.SimpleHTTPRequestHandler):
         return parse_qs(urlsplit(self.path).query, keep_blank_values=True)
 
     def log_message(self, format_string, *args):
+        if self.path.startswith("/api/files/ticket/"):
+            return
         super().log_message(format_string, *args)
 
 
@@ -259,20 +296,23 @@ class DeskHandler(BaseHandler):
             self.send_response(204)
             self.end_headers()
             return
+        ticket_prefix = "/api/files/ticket/"
+        if path.startswith(ticket_prefix):
+            ticket = path[len(ticket_prefix):]
+            link = self.server.state.consume_file_ticket(ticket, self.client_address[0])
+            if not link:
+                self.send_json(410, {"error": "This file link expired. Return to the file shelf and try again."})
+                return
+            target, inline = link
+            self.send_download(target, inline)
+            return
         if path.startswith("/api/"):
-            if path == "/api/files" or path == "/api/files/download":
+            if path == "/api/files":
                 if not self.auth_required():
                     return
                 try:
-                    if path == "/api/files":
-                        directory = query.get("dir", [""])[0]
-                        self.send_json(200, self.server.state.list_files(directory))
-                    else:
-                        relative = query.get("path", [""])[0]
-                        target = self.server.state.safe_path(relative)
-                        if not target.is_file():
-                            raise ValueError("That shelf item is not a file.")
-                        self.send_download(target)
+                    directory = query.get("dir", [""])[0]
+                    self.send_json(200, self.server.state.list_files(directory))
                 except (OSError, ValueError) as error:
                     self.send_json(400, {"error": str(error) or "That shelf item is unavailable."})
                 return
@@ -311,6 +351,20 @@ class DeskHandler(BaseHandler):
                     self.send_json(200, {"token": token, "expires_in": SESSION_SECONDS})
             except ValueError as error:
                 self.send_json(400, {"error": str(error)})
+            return
+        if path == "/api/files/link":
+            if not self.auth_required():
+                return
+            try:
+                data = self.read_json()
+                relative = data.get("path", "")
+                mode = data.get("mode", "")
+                if mode not in ("open", "download"):
+                    raise ValueError("Choose open or download for this file.")
+                ticket = self.server.state.create_file_ticket(relative, mode == "open", self.client_address[0])
+                self.send_json(200, {"url": "/api/files/ticket/" + ticket})
+            except (OSError, ValueError) as error:
+                self.send_json(400, {"error": str(error) or "That file is unavailable."})
             return
         if path == "/api/unpair":
             if not self.auth_required():
@@ -360,15 +414,19 @@ class DeskHandler(BaseHandler):
                     raise ValueError("Choose a photo image first.")
                 header, encoded = image_data.split(",", 1)
                 mime = header[5:].split(";", 1)[0].lower()
-                extensions = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif"}
+                extensions = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp", "image/heic": ".heic", "image/heif": ".heif"}
                 if mime not in extensions or ";base64" not in header:
                     raise ValueError("Use a JPEG, PNG, or GIF image.")
                 raw = base64.b64decode(encoded, validate=True)
                 if not raw or len(raw) > MAX_PHOTO_BYTES:
                     raise ValueError("Photos must be smaller than 8 MB.")
+                brand = raw[8:12].decode("ascii", "ignore") if len(raw) >= 12 else ""
                 signatures = {"image/jpeg": raw.startswith(b"\xff\xd8\xff"),
                               "image/png": raw.startswith(b"\x89PNG\r\n\x1a\n"),
-                              "image/gif": raw.startswith((b"GIF87a", b"GIF89a"))}
+                              "image/gif": raw.startswith((b"GIF87a", b"GIF89a")),
+                              "image/webp": raw.startswith(b"RIFF") and raw[8:12] == b"WEBP",
+                              "image/heic": raw[4:8] == b"ftyp" and brand in ("heic", "heix", "hevc", "hevx", "mif1", "msf1"),
+                              "image/heif": raw[4:8] == b"ftyp" and brand in ("heif", "mif1", "msf1")}
                 if not signatures[mime]:
                     raise ValueError("The selected file does not match its image type.")
                 stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -458,16 +516,17 @@ class DeskHandler(BaseHandler):
                 return
         self.send_json(200, {"removed": True})
 
-    def send_download(self, target):
+    def send_download(self, target, inline=False):
         try:
             size = target.stat().st_size
-            mime = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+            mime = file_mime(target)
             safe_name = "".join(character if 32 <= ord(character) < 127 and character not in '"\\' else "_" for character in target.name)
             encoded = quote(target.name.encode("utf-8"))
             self.send_response(200)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(size))
-            self.send_header("Content-Disposition", 'attachment; filename="%s"; filename*=UTF-8\'\'%s' % (safe_name, encoded))
+            disposition = "inline" if inline else "attachment"
+            self.send_header("Content-Disposition", '%s; filename="%s"; filename*=UTF-8\'\'%s' % (disposition, safe_name, encoded))
             self.end_headers()
             with target.open("rb") as file_obj:
                 while True:
@@ -522,11 +581,11 @@ class ControlHandler(BaseHandler):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="A small private desk for an iPad and laptop on your own Wi-Fi.")
-    parser.add_argument("--share-folder", required=True, help="The one existing folder the iPad may browse and download from.")
+    parser = argparse.ArgumentParser(description="A private local workspace for a phone, tablet, or laptop on your Wi-Fi.")
+    parser.add_argument("--share-folder", required=True, help="The one existing folder the connected device may browse and download from.")
     parser.add_argument("--host", default="127.0.0.1", help="Exact laptop IPv4 address to bind. Default: 127.0.0.1 (laptop only).")
-    parser.add_argument("--photo-folder", help="Optional existing folder where paired iPad photos may be saved.")
-    parser.add_argument("--port", type=int, default=8787, help="iPad page port (default 8787).")
+    parser.add_argument("--photo-folder", help="Optional existing folder where selected device photos may be saved.")
+    parser.add_argument("--port", type=int, default=8787, help="Workspace page port (default 8787).")
     parser.add_argument("--control-port", type=int, default=8788, help="Laptop-only control page port (default 8788).")
     return parser.parse_args()
 
@@ -540,7 +599,7 @@ def main():
         if not (1 <= args.port <= 65535 and 1 <= args.control_port <= 65535):
             raise ValueError("Ports must be between 1 and 65535.")
         if args.port == args.control_port:
-            raise ValueError("The iPad and laptop control pages need different ports.")
+            raise ValueError("The workspace and desktop control pages need different ports.")
         state = DeskState(args.share_folder, data_directory() / "notes.json", args.photo_folder)
         lan_server = http.server.ThreadingHTTPServer((str(host_ip), args.port), DeskHandler)
         lan_server.state = state
@@ -552,7 +611,7 @@ def main():
     thread = threading.Thread(target=control_server.serve_forever, name="pocket-desk-control", daemon=True)
     thread.start()
     print("Pocket Desk is ready.")
-    print("iPad address: http://%s:%d/" % (host_ip, args.port))
+    print("Workspace address: http://%s:%d/" % (host_ip, args.port))
     print("Laptop controls: http://127.0.0.1:%d/host.html" % args.control_port)
     print("Pairing code: %s (expires in five minutes)" % state.pair_code)
     print("Shared folder: %s" % state.shared_folder)

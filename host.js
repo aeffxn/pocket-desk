@@ -28,7 +28,7 @@
       }
       document.getElementById('host-message').textContent = '';
       if (result.paired) {
-        state.innerHTML = '<span class="status-lamp"></span> IPAD PAIRED';
+        state.innerHTML = '<span class="status-lamp"></span> DEVICE CONNECTED';
         codeCard.style.display = 'none';
         pairedCard.style.display = 'block';
       } else {
@@ -42,9 +42,9 @@
   }
 
   document.getElementById('host-disconnect').addEventListener('click', function () {
-    if (!window.confirm('Disconnect the paired iPad now? It will need the new code to reconnect.')) return;
+    if (!window.confirm('Disconnect the connected device? It will need the new code to reconnect.')) return;
     request('POST', '/api/disconnect', {}, function (status, result) {
-      document.getElementById('host-message').textContent = status === 200 ? 'iPad disconnected. A new code is ready.' : (result.error || 'Could not disconnect the iPad.');
+      document.getElementById('host-message').textContent = status === 200 ? 'Device disconnected. A new code is ready.' : (result.error || 'Could not disconnect the device.');
       update();
     });
   });

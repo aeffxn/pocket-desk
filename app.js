@@ -26,6 +26,34 @@
   var hoopPoints = 0;
   var hoopEnd = 0;
   var hoopRunning = false;
+  var tttCells = [];
+  var tttTurn = 'X';
+  var tttDone = false;
+  var memoryDeck = [];
+  var memoryOpen = [];
+  var memoryFound = [];
+  var memoryLocked = false;
+  var tileValues = [];
+  var tileScore = 0;
+  var reactionState = 'idle';
+  var reactionTimeout = null;
+  var reactionStarted = 0;
+  var reactionBest = 0;
+  var rpsWins = 0;
+  var rpsLosses = 0;
+  var simonSequence = [];
+  var simonPosition = 0;
+  var simonShowing = false;
+  var numberLength = 3;
+  var numberCurrent = '';
+  var wordScore = 0;
+  var wordCurrent = '';
+  var higherCurrent = 7;
+  var higherStreak = 0;
+  var sprintStarted = 0;
+  var sprintCount = 0;
+  var sprintRunning = false;
+  var sprintBest = 0;
 
   function readToken() {
     try { return window.localStorage.getItem(tokenKey) || ''; }
@@ -56,17 +84,17 @@
       var result;
       if (xhr.readyState !== 4) return;
       try { result = xhr.responseText ? JSON.parse(xhr.responseText) : {}; }
-      catch (error) { result = { error: 'The laptop sent an unreadable response.' }; }
+      catch (error) { result = { error: 'The server sent an unreadable response.' }; }
       if (xhr.status === 401) {
         clearToken();
         showDesk(false);
-        pairError.innerHTML = 'This session ended. Enter the current code from the laptop to pair again.';
+        pairError.innerHTML = 'This session ended. Enter the current code to connect again.';
         return;
       }
       callback(xhr.status, result);
     };
     xhr.onerror = function () {
-      callback(0, { error: 'The laptop is not answering. Check that Pocket Desk is still running on the same Wi-Fi.' });
+      callback(0, { error: 'Pocket Desk is not responding. Check that it is running on the same Wi-Fi.' });
     };
     xhr.send(data === null ? null : JSON.stringify(data));
   }
@@ -91,6 +119,7 @@
     for (i = 0; i < tabs.length; i += 1) {
       tabs[i].className = tabs[i].getAttribute('data-panel') === name ? 'tool-tab active' : 'tool-tab';
     }
+    document.getElementById('tool-picker').value = name;
     if (name === 'files-panel') loadFiles('');
     if (name === 'notes-panel') loadNotes();
     if (name === 'photo-panel') checkPhotoSetting();
@@ -160,7 +189,7 @@
     request('GET', '/api/notes', null, function (status, result) {
       if (status === 200) {
         notes = result.notes || [];
-        text(notesMessage, 'Saved on the laptop · ' + notes.length + (notes.length === 1 ? ' note' : ' notes'));
+        text(notesMessage, 'Saved on this computer · ' + notes.length + (notes.length === 1 ? ' note' : ' notes'));
         renderNotes();
       } else text(notesMessage, result.error || 'Could not load notes.');
     });
@@ -183,6 +212,7 @@
       var i;
       var row;
       var link;
+      var downloadLink;
       var kind;
       var back;
       while (fileList.firstChild) fileList.removeChild(fileList.firstChild);
@@ -215,10 +245,34 @@
         } else {
           link = document.createElement('a');
           link.className = 'file-link';
-          link.href = '/api/files/download?path=' + encodeURIComponent(result.items[i].path);
-          link.setAttribute('data-download', 'yes');
-          text(link, '↓  ' + result.items[i].name);
+          if (result.items[i].can_preview) {
+            link.href = '#';
+            link.setAttribute('data-file-path', result.items[i].path);
+            link.setAttribute('data-file-mode', 'open');
+            text(link, 'Open · ' + result.items[i].name);
+          } else {
+            link.href = '#';
+            link.setAttribute('data-file-path', result.items[i].path);
+            link.setAttribute('data-file-mode', 'download');
+            text(link, 'Download · ' + result.items[i].name);
+          }
           text(kind, result.items[i].size_label);
+          if (result.items[i].can_preview) {
+            downloadLink = document.createElement('a');
+            downloadLink.className = 'file-download';
+            downloadLink.href = '#';
+            downloadLink.setAttribute('data-file-path', result.items[i].path);
+            downloadLink.setAttribute('data-file-mode', 'download');
+            text(downloadLink, 'Download');
+            row.appendChild(link);
+            row.appendChild(downloadLink);
+            row.appendChild(kind);
+          } else {
+            link.appendChild(kind);
+            row.appendChild(link);
+          }
+          fileList.appendChild(row);
+          continue;
         }
         link.appendChild(kind);
         row.appendChild(link);
@@ -244,7 +298,7 @@
 
   function loadDevice() {
     var reading = document.getElementById('battery-reading');
-    text(reading, 'Checking the laptop…');
+      text(reading, 'Checking computer…');
     request('GET', '/api/device', null, function (status, result) {
       if (status !== 200 || !result.available) {
         text(reading, 'No battery reading is available.');
@@ -411,6 +465,328 @@
     text(document.getElementById('hoop-score'), 'Score ' + hoopPoints + ' · ' + Math.max(0, Math.ceil((hoopEnd - (+new Date())) / 1000)) + ' seconds');
   }
 
+  function startTicTacToe() {
+    var cells = document.getElementById('ttt-board').getElementsByTagName('button');
+    var i;
+    tttCells = ['', '', '', '', '', '', '', '', ''];
+    tttTurn = 'X';
+    tttDone = false;
+    for (i = 0; i < cells.length; i += 1) cells[i].textContent = '';
+    text(document.getElementById('ttt-status'), 'X goes first');
+  }
+
+  function playTicTacToe(index, button) {
+    var wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    var i;
+    if (tttDone || tttCells[index]) return;
+    tttCells[index] = tttTurn;
+    button.textContent = tttTurn;
+    for (i = 0; i < wins.length; i += 1) {
+      if (tttCells[wins[i][0]] === tttTurn && tttCells[wins[i][1]] === tttTurn && tttCells[wins[i][2]] === tttTurn) {
+        tttDone = true;
+        text(document.getElementById('ttt-status'), tttTurn + ' wins');
+        return;
+      }
+    }
+    if (tttCells.join('').length === 9) { tttDone = true; text(document.getElementById('ttt-status'), 'Draw'); return; }
+    tttTurn = tttTurn === 'X' ? 'O' : 'X';
+    text(document.getElementById('ttt-status'), tttTurn + ' goes next');
+  }
+
+  function shuffle(values) {
+    var i;
+    var j;
+    var value;
+    for (i = values.length - 1; i > 0; i -= 1) {
+      j = Math.floor(Math.random() * (i + 1));
+      value = values[i]; values[i] = values[j]; values[j] = value;
+    }
+    return values;
+  }
+
+  function startMemory() {
+    var i;
+    var board = document.getElementById('memory-board');
+    var button;
+    memoryDeck = shuffle([1,1,2,2,3,3,4,4,5,5,6,6]);
+    memoryOpen = [];
+    memoryFound = [];
+    memoryLocked = false;
+    while (board.firstChild) board.removeChild(board.firstChild);
+    for (i = 0; i < memoryDeck.length; i += 1) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'memory-card';
+      button.setAttribute('data-memory', String(i));
+      button.textContent = '?';
+      board.appendChild(button);
+    }
+    text(document.getElementById('memory-status'), 'Pairs found: 0 of 6');
+  }
+
+  function turnMemory(index, button) {
+    var first;
+    var second;
+    if (memoryLocked || memoryFound[index] || memoryOpen.length === 2 || (memoryOpen.length && memoryOpen[0].index === index)) return;
+    button.textContent = String(memoryDeck[index]);
+    button.className = 'memory-card memory-open';
+    memoryOpen.push({ index: index, button: button });
+    if (memoryOpen.length !== 2) return;
+    first = memoryOpen[0]; second = memoryOpen[1];
+    if (memoryDeck[first.index] === memoryDeck[second.index]) {
+      memoryFound[first.index] = true; memoryFound[second.index] = true;
+      first.button.className = 'memory-card memory-found'; second.button.className = 'memory-card memory-found';
+      memoryOpen = [];
+      text(document.getElementById('memory-status'), 'Pairs found: ' + (Object.keys(memoryFound).length / 2) + ' of 6');
+      return;
+    }
+    memoryLocked = true;
+    window.setTimeout(function () {
+      first.button.textContent = '?'; second.button.textContent = '?';
+      first.button.className = 'memory-card'; second.button.className = 'memory-card';
+      memoryOpen = []; memoryLocked = false;
+    }, 700);
+  }
+
+  function addTile() {
+    var empty = [];
+    var i;
+    for (i = 0; i < tileValues.length; i += 1) if (!tileValues[i]) empty.push(i);
+    if (empty.length) tileValues[empty[Math.floor(Math.random() * empty.length)]] = Math.random() < 0.9 ? 2 : 4;
+  }
+
+  function renderTiles() {
+    var board = document.getElementById('tiles-board');
+    var i;
+    var cell;
+    while (board.firstChild) board.removeChild(board.firstChild);
+    for (i = 0; i < 16; i += 1) {
+      cell = document.createElement('div');
+      cell.className = 'tile-cell' + (tileValues[i] ? ' tile-v' + Math.min(tileValues[i], 2048) : '');
+      cell.textContent = tileValues[i] ? String(tileValues[i]) : '';
+      board.appendChild(cell);
+    }
+    text(document.getElementById('tiles-status'), 'Score ' + tileScore);
+  }
+
+  function startTiles() {
+    tileValues = [];
+    tileScore = 0;
+    var i;
+    for (i = 0; i < 16; i += 1) tileValues[i] = 0;
+    addTile(); addTile(); renderTiles();
+  }
+
+  function moveTiles(direction) {
+    var before = tileValues.join(',');
+    var line;
+    var indexes;
+    var packed;
+    var i;
+    var j;
+    var row;
+    var col;
+    var merged;
+    for (line = 0; line < 4; line += 1) {
+      indexes = [];
+      for (i = 0; i < 4; i += 1) {
+        row = direction === 'down' ? 3 - i : (direction === 'up' ? i : line);
+        col = direction === 'right' ? 3 - i : (direction === 'left' ? i : line);
+        indexes.push(row * 4 + col);
+      }
+      packed = [];
+      for (i = 0; i < 4; i += 1) if (tileValues[indexes[i]]) packed.push(tileValues[indexes[i]]);
+      merged = [];
+      for (i = 0; i < packed.length; i += 1) {
+        if (packed[i] === packed[i + 1]) { merged.push(packed[i] * 2); tileScore += packed[i] * 2; i += 1; }
+        else merged.push(packed[i]);
+      }
+      for (j = 0; j < 4; j += 1) tileValues[indexes[j]] = merged[j] || 0;
+    }
+    if (before !== tileValues.join(',')) { addTile(); renderTiles(); }
+  }
+
+  function startReaction() {
+    reactionState = 'waiting';
+    var padNode = document.getElementById('reaction-pad');
+    padNode.className = 'reaction-pad reaction-wait';
+    text(padNode, 'Wait for green…');
+    reactionTimeout = window.setTimeout(function () {
+      reactionState = 'ready';
+      reactionStarted = +new Date();
+      padNode.className = 'reaction-pad reaction-ready';
+      text(padNode, 'Tap now');
+    }, 1300 + Math.floor(Math.random() * 2600));
+  }
+
+  function playReaction() {
+    var padNode = document.getElementById('reaction-pad');
+    if (reactionState === 'waiting') {
+      window.clearTimeout(reactionTimeout); reactionState = 'idle';
+      padNode.className = 'reaction-pad'; text(padNode, 'Too soon · try again'); return;
+    }
+    if (reactionState === 'ready') {
+      var result = +new Date() - reactionStarted;
+      reactionState = 'idle';
+      if (!reactionBest || result < reactionBest) reactionBest = result;
+      padNode.className = 'reaction-pad'; text(padNode, result + ' ms · tap to retry');
+      text(document.getElementById('reaction-status'), 'Best time: ' + reactionBest + ' ms'); return;
+    }
+    startReaction();
+  }
+
+  function playRps(choice) {
+    var options = ['rock', 'paper', 'scissors'];
+    var computer = options[Math.floor(Math.random() * 3)];
+    var win = (choice === 'rock' && computer === 'scissors') || (choice === 'paper' && computer === 'rock') || (choice === 'scissors' && computer === 'paper');
+    var result = choice === computer ? 'Tie' : (win ? 'You win' : 'Computer wins');
+    if (win) rpsWins += 1;
+    if (!win && choice !== computer) rpsLosses += 1;
+    text(document.getElementById('rps-status'), result + ' · computer chose ' + computer + ' · ' + rpsWins + ' wins / ' + rpsLosses + ' losses');
+  }
+
+  function showSimon(index) {
+    var button = document.querySelector('[data-simon="' + index + '"]');
+    button.className = 'simon-lit';
+    window.setTimeout(function () { button.className = ''; }, 320);
+  }
+
+  function simonNext() {
+    simonSequence.push(Math.floor(Math.random() * 4));
+    simonPosition = 0; simonShowing = true;
+    text(document.getElementById('simon-status'), 'Level ' + simonSequence.length + ' · watch');
+    var i = 0;
+    function flash() {
+      if (i >= simonSequence.length) { simonShowing = false; text(document.getElementById('simon-status'), 'Your turn'); return; }
+      showSimon(simonSequence[i]); i += 1; window.setTimeout(flash, 620);
+    }
+    window.setTimeout(flash, 300);
+  }
+
+  function playSimon(value) {
+    if (simonShowing || !simonSequence.length) return;
+    showSimon(value);
+    if (simonSequence[simonPosition] !== value) {
+      simonSequence = []; text(document.getElementById('simon-status'), 'Missed it · press Start to try again'); return;
+    }
+    simonPosition += 1;
+    if (simonPosition === simonSequence.length) window.setTimeout(simonNext, 550);
+  }
+
+  function startNumber() {
+    var i;
+    numberCurrent = '';
+    for (i = 0; i < numberLength; i += 1) numberCurrent += String(Math.floor(Math.random() * 10));
+    document.getElementById('number-answer').value = '';
+    text(document.getElementById('number-prompt'), numberCurrent);
+    text(document.getElementById('number-status'), 'Memorize it');
+    window.setTimeout(function () { text(document.getElementById('number-prompt'), 'Type the number'); document.getElementById('number-answer').focus(); }, 1400);
+  }
+
+  function checkNumber() {
+    if (!numberCurrent) return;
+    if (document.getElementById('number-answer').value === numberCurrent) {
+      numberLength += 1; text(document.getElementById('number-status'), 'Correct · next round has ' + numberLength + ' digits');
+    } else {
+      numberLength = 3; text(document.getElementById('number-status'), 'Not quite · try again at ' + numberLength + ' digits');
+    }
+  }
+
+  function nextWord() {
+    var words = ['garden', 'planet', 'pocket', 'window', 'silver', 'pencil', 'coffee', 'button', 'orange', 'little'];
+    var letters;
+    wordCurrent = words[Math.floor(Math.random() * words.length)];
+    letters = shuffle(wordCurrent.split(''));
+    while (letters.join('') === wordCurrent) letters = shuffle(wordCurrent.split(''));
+    text(document.getElementById('word-scramble'), letters.join(''));
+    document.getElementById('word-answer').value = '';
+    text(document.getElementById('word-status'), 'Score ' + wordScore);
+  }
+
+  function guessHigher(direction) {
+    var next = Math.floor(Math.random() * 13) + 1;
+    var correct = direction === 'higher' ? next >= higherCurrent : next <= higherCurrent;
+    text(document.getElementById('higher-card'), String(next));
+    if (next === higherCurrent || correct) higherStreak += 1; else higherStreak = 0;
+    higherCurrent = next;
+    text(document.getElementById('higher-status'), (correct ? 'Correct' : 'Wrong') + ' · streak ' + higherStreak);
+  }
+
+  function sprintTap() {
+    var now = +new Date();
+    if (!sprintRunning) {
+      sprintCount = 0; sprintRunning = true; sprintStarted = now;
+      text(document.getElementById('sprint-pad'), 'Tap!');
+      window.setTimeout(function () {
+        sprintRunning = false;
+        if (sprintCount > sprintBest) sprintBest = sprintCount;
+        text(document.getElementById('sprint-pad'), 'Finished');
+        text(document.getElementById('sprint-status'), sprintCount + ' taps · best ' + sprintBest);
+      }, 10000);
+      return;
+    }
+    if (now - sprintStarted <= 10000) sprintCount += 1;
+  }
+
+  function openGame(game) {
+    var games = ['snake-game', 'football-game', 'hoop-game', 'ttt-game', 'memory-game', 'tiles-game', 'reaction-game', 'rps-game', 'simon-game', 'number-game', 'word-game', 'higher-game', 'sprint-game'];
+    var i;
+    if (game !== 'snake-game' && snakeTimer) { window.clearInterval(snakeTimer); snakeTimer = null; }
+    if (game !== 'hoop-game') hoopRunning = false;
+    for (i = 0; i < games.length; i += 1) document.getElementById(games[i]).style.display = games[i] === game ? 'block' : 'none';
+    document.getElementById('game-picker').value = game;
+    if (game === 'snake-game') drawSnake();
+    if (game === 'ttt-game') startTicTacToe();
+    if (game === 'memory-game') startMemory();
+    if (game === 'tiles-game') startTiles();
+    if (game === 'reaction-game') { reactionState = 'idle'; document.getElementById('reaction-pad').className = 'reaction-pad'; text(document.getElementById('reaction-pad'), 'Tap to start'); }
+    if (game === 'simon-game') { simonSequence = []; text(document.getElementById('simon-status'), 'Level 0'); }
+    if (game === 'number-game') { numberLength = 3; numberCurrent = ''; document.getElementById('number-answer').value = ''; text(document.getElementById('number-prompt'), 'Ready'); text(document.getElementById('number-status'), ''); }
+    if (game === 'word-game') nextWord();
+    if (game === 'higher-game') { higherCurrent = Math.floor(Math.random() * 13) + 1; higherStreak = 0; text(document.getElementById('higher-card'), String(higherCurrent)); text(document.getElementById('higher-status'), 'Streak: 0'); }
+    if (game === 'sprint-game') { sprintRunning = false; sprintCount = 0; text(document.getElementById('sprint-pad'), 'Start'); text(document.getElementById('sprint-status'), 'Best: ' + sprintBest); }
+  }
+
+  document.getElementById('tool-picker').addEventListener('change', function () { setPanel(this.value); });
+  document.getElementById('game-picker').addEventListener('change', function () { openGame(this.value); });
+  document.getElementById('ttt-board').addEventListener('click', function (event) {
+    var index = event.target.getAttribute('data-cell');
+    if (index !== null) playTicTacToe(parseInt(index, 10), event.target);
+  });
+  document.getElementById('ttt-reset').addEventListener('click', startTicTacToe);
+  document.getElementById('memory-reset').addEventListener('click', startMemory);
+  document.getElementById('memory-board').addEventListener('click', function (event) {
+    var index = event.target.getAttribute('data-memory');
+    if (index !== null) turnMemory(parseInt(index, 10), event.target);
+  });
+  document.getElementById('tiles-reset').addEventListener('click', startTiles);
+  document.getElementById('tiles-game').getElementsByClassName('game-pad')[0].addEventListener('click', function (event) {
+    var direction = event.target.getAttribute('data-tile-direction');
+    if (direction) moveTiles(direction);
+  });
+  document.getElementById('reaction-pad').addEventListener('click', playReaction);
+  document.getElementById('rps-choices').addEventListener('click', function (event) {
+    var choice = event.target.getAttribute('data-rps');
+    if (choice) playRps(choice);
+  });
+  document.getElementById('simon-start').addEventListener('click', function () { simonSequence = []; simonNext(); });
+  document.getElementsByClassName('simon-board')[0].addEventListener('click', function (event) {
+    var value = event.target.getAttribute('data-simon');
+    if (value !== null) playSimon(parseInt(value, 10));
+  });
+  document.getElementById('number-start').addEventListener('click', startNumber);
+  document.getElementById('number-submit').addEventListener('click', checkNumber);
+  document.getElementById('word-next').addEventListener('click', nextWord);
+  document.getElementById('word-submit').addEventListener('click', function () {
+    if (document.getElementById('word-answer').value.toLowerCase().replace(/\s/g, '') === wordCurrent) {
+      wordScore += 1; text(document.getElementById('word-status'), 'Correct · score ' + wordScore); nextWord();
+    } else text(document.getElementById('word-status'), 'Try again · score ' + wordScore);
+  });
+  document.getElementById('higher-higher').addEventListener('click', function () { guessHigher('higher'); });
+  document.getElementById('higher-lower').addEventListener('click', function () { guessHigher('lower'); });
+  document.getElementById('higher-reset').addEventListener('click', function () { higherCurrent = Math.floor(Math.random() * 13) + 1; higherStreak = 0; text(document.getElementById('higher-card'), String(higherCurrent)); text(document.getElementById('higher-status'), 'Streak: 0'); });
+  document.getElementById('sprint-pad').addEventListener('click', sprintTap);
+
   document.getElementById('clock-format').addEventListener('click', function () {
     clock24 = !clock24;
     this.textContent = clock24 ? 'Switch to 12-hour' : 'Switch to 24-hour';
@@ -457,16 +833,6 @@
     var direction = event.target.getAttribute('data-direction');
     if (direction) chooseDirection(direction);
   });
-  document.getElementsByClassName('game-switch')[0].addEventListener('click', function (event) {
-    var game = event.target.getAttribute('data-game');
-    var choices = document.getElementsByClassName('game-choice');
-    var panels = ['snake-game', 'football-game', 'hoop-game'];
-    var i;
-    if (!game) return;
-    for (i = 0; i < panels.length; i += 1) document.getElementById(panels[i]).style.display = panels[i] === game ? 'block' : 'none';
-    for (i = 0; i < choices.length; i += 1) choices[i].className = choices[i] === event.target ? 'game-choice active' : 'game-choice';
-    if (game === 'snake-game') drawSnake();
-  });
   document.getElementsByClassName('shot-choices')[0].addEventListener('click', function (event) {
     var shot = event.target.getAttribute('data-shot');
     if (shot) footballShot(shot);
@@ -488,8 +854,8 @@
     var reader;
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) { text(document.getElementById('photo-message'), 'Choose an image smaller than 8 MB.'); return; }
-    if (!/^image\/(jpeg|png|gif)$/i.test(file.type)) { text(document.getElementById('photo-message'), 'Choose a JPEG, PNG, or GIF image.'); return; }
-    if (!window.confirm('Send “' + file.name + '” to the photo folder chosen on the laptop?')) { this.value = ''; return; }
+    if (!/^image\/(jpeg|png|gif|webp|heic|heif)$/i.test(file.type)) { text(document.getElementById('photo-message'), 'Choose a JPEG, PNG, GIF, WebP, or HEIC image.'); return; }
+    if (!window.confirm('Send “' + file.name + '” to the photo folder chosen on the computer?')) { this.value = ''; return; }
     reader = new FileReader();
     reader.onload = function () {
       request('POST', '/api/photos', { data: reader.result }, function (status, result) {
@@ -504,7 +870,7 @@
   document.getElementById('pair-form').addEventListener('submit', function (event) {
     var code = document.getElementById('pair-code').value.replace(/\s/g, '');
     event.preventDefault();
-    text(pairError, 'Checking the laptop code…');
+    text(pairError, 'Checking the code…');
     request('POST', '/api/pair', { code: code }, function (status, result) {
       if (status === 200 && result.token) {
         token = result.token;
@@ -512,7 +878,7 @@
         text(pairError, '');
         showDesk(true);
         loadNotes();
-      } else text(pairError, result.error || 'That code did not work. Check the laptop control page.');
+      } else text(pairError, result.error || 'That code did not work. Check the Pocket Desk window.');
     });
   });
 
@@ -520,7 +886,7 @@
     request('POST', '/api/unpair', {}, function (status) {
       clearToken();
       showDesk(false);
-      text(pairError, status === 200 ? 'Disconnected. Ask the laptop for the current code when you want to return.' : 'Disconnected on this iPad. The laptop owner can clear the session from the control page.');
+      text(pairError, status === 200 ? 'Disconnected. Enter the current code to reconnect.' : 'Disconnected here. Clear the session from the desktop app if needed.');
     });
   });
 
@@ -539,12 +905,12 @@
     var id = document.getElementById('note-id').value;
     var data = { title: document.getElementById('note-title').value, body: document.getElementById('note-body').value };
     event.preventDefault();
-    if (!data.body.replace(/^\s+|\s+$/g, '')) { text(document.getElementById('note-error'), 'Write a little something before saving.'); return; }
+    if (!data.body.replace(/^\s+|\s+$/g, '')) { text(document.getElementById('note-error'), 'Enter some text before saving.'); return; }
     request(id ? 'PUT' : 'POST', id ? '/api/notes/' + encodeURIComponent(id) : '/api/notes', data, function (status, result) {
       if (status === 200 || status === 201) {
         noteForm.style.display = 'none';
         resetNoteForm();
-        text(notesMessage, 'Saved on the laptop.');
+        text(notesMessage, 'Saved on this computer.');
         loadNotes();
       } else text(document.getElementById('note-error'), result.error || 'Could not save this note.');
     });
@@ -565,7 +931,7 @@
         document.getElementById('note-body').value = notes[i].body;
         noteForm.style.display = 'block';
         document.getElementById('note-title').focus();
-      } else if (window.confirm('Remove this note from the laptop?')) {
+      } else if (window.confirm('Delete this note?')) {
         request('DELETE', '/api/notes/' + encodeURIComponent(id), null, function (status, result) {
           if (status === 200) loadNotes();
           else text(notesMessage, result.error || 'Could not remove this note.');
@@ -590,16 +956,28 @@
     var target = event.target;
     var directory = null;
     var parent = null;
+    var filePath = null;
+    var fileMode = null;
     while (target && target !== this) {
       if (target.getAttribute) {
         directory = target.getAttribute('data-folder');
         parent = target.getAttribute('data-parent');
-        if (directory !== null || parent !== null) break;
+        filePath = target.getAttribute('data-file-path');
+        fileMode = target.getAttribute('data-file-mode');
+        if (directory !== null || parent !== null || filePath !== null) break;
       }
       target = target.parentNode;
     }
     if (directory !== null) loadFiles(directory);
     else if (parent !== null) loadFiles(parent);
+    else if (filePath !== null) {
+      event.preventDefault();
+      text(document.getElementById('files-message'), fileMode === 'open' ? 'Opening file…' : 'Preparing download…');
+      request('POST', '/api/files/link', { path: filePath, mode: fileMode }, function (status, result) {
+        if (status === 200 && result.url) window.location.href = result.url;
+        else text(document.getElementById('files-message'), result.error || 'Could not open that file.');
+      });
+    }
   });
 
   var savedTheme = 'paper';
