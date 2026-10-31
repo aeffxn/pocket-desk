@@ -80,7 +80,7 @@
   }
 
   function setPanel(name) {
-    var panels = ['clock-panel', 'games-panel', 'notes-panel', 'files-panel', 'photo-panel', 'device-panel', 'theme-panel', 'voice-panel'];
+    var panels = ['clock-panel', 'timer-panel', 'games-panel', 'theme-panel', 'notes-panel', 'files-panel', 'photo-panel', 'device-panel', 'voice-panel'];
     var i;
     var panel;
     var tabs = document.getElementsByClassName('tool-tab');
@@ -264,6 +264,7 @@
       suffix = hours >= 12 ? ' PM' : ' AM';
       hours = hours % 12 || 12;
     }
+    document.getElementById('clock-time').className = clock24 ? 'clock-time' : 'clock-time compact-clock';
     text(document.getElementById('clock-time'), pad(hours) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds()) + suffix);
     text(document.getElementById('clock-date'), ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()] + ', ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.getMonth()] + ' ' + now.getDate());
     if (timerRunning) {
@@ -416,6 +417,7 @@
     try { window.localStorage.setItem('pocket-desk-clock-format', clock24 ? '24' : '12'); } catch (error) {}
     clockTick();
   });
+  document.getElementById('themes-shortcut').addEventListener('click', function () { setPanel('theme-panel'); });
   document.getElementById('timer-toggle').addEventListener('click', function () {
     if (timerRunning) {
       timerRemaining = Math.max(0, timerDeadline - (+new Date()));

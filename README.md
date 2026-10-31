@@ -48,7 +48,7 @@ The desktop window and server use only Python's standard library. If double-clic
 1. Join the same trusted Wi-Fi network as the laptop.
 2. Open the iPad address shown by the laptop window in Safari, for example `http://192.168.1.24:8787/`.
 3. Type the six-digit code shown in the laptop window.
-4. The desk opens on the large clock. Use the tabs for Games, Notes, File shelf, Photo, Laptop, Themes, and More. The code expires after five minutes; only one iPad can pair at a time.
+4. The desk opens on the giant centered clock. **Timer** is its own tab. **Themes** is available in the tab row and as a shortcut at the top of the desk. The code expires after five minutes; only one iPad can pair at a time.
 
 Use regular Safari if an access point opens a captive sign-in window. Pocket Desk does not imitate a hotspot or change router settings.
 
