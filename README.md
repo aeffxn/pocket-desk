@@ -4,125 +4,100 @@
 ![Target browser](https://img.shields.io/badge/Target-iOS%209%20Safari-b46c50?style=flat-square)
 ![Dependencies](https://img.shields.io/badge/Runtime%20dependencies-none-8b8066?style=flat-square)
 
-A small second desk for an old iPad and a laptop on the same Wi-Fi. Keep quick notes, fetch a file from one folder you chose, and leave the laptop camera alone. No account or cloud service in the middle.
+A small local desk for an old iPad and a Windows laptop. It has a simple laptop window, quick notes, a read-only file shelf, laptop battery status, and an optional photo drop. No account or cloud service.
 
 ## 📑 In this drawer
 
 - [What works](#-what-works)
-- [Requirements](#-requirements)
-- [Start the desk](#-start-the-desk)
+- [Run it on Windows](#-run-it-on-windows)
 - [Connect the iPad](#-connect-the-ipad)
+- [Use the photo drop](#-use-the-photo-drop)
+- [Limits of an old iPad](#-limits-of-an-old-ipad)
 - [Privacy and network boundaries](#-privacy-and-network-boundaries)
 - [Project structure](#-project-structure)
-- [How it works](#-how-it-works)
-- [The paper, not the dashboard](#-the-paper-not-the-dashboard)
 - [iOS 9 Safari check](#-ios-9-safari-check)
 
 ## 🧰 What works
 
 | Tool | What it does |
 |---|---|
-| **Quick notes** | Add, edit, search, and remove short notes. They are saved on the laptop in your user data folder. |
-| **File shelf** | Browse and download files below one folder you selected when starting the server. The iPad cannot upload, overwrite, or delete files. |
-| **Pairing** | A six-digit code appears in the laptop control page and terminal. It expires after five minutes; one iPad session lasts up to eight hours and can be disconnected from the laptop. |
-| **Camera** | Not available in this setup. Pocket Desk never asks for camera or microphone permission. |
+| **Quick notes** | Add, edit, search, and remove notes saved on the laptop. |
+| **File shelf** | Browse and download from one folder chosen in the laptop app. Read-only. |
+| **Laptop battery** | Ask Windows for the current battery percent and whether it is plugged in. Desktops may report no battery. |
+| **Photo drop** | Optional. If you choose a separate destination folder in the laptop window, the paired iPad can choose an image and confirm sending it there. |
+| **Pairing** | A six-digit code expires after five minutes. One iPad can pair for up to eight hours; disconnect it from the laptop window. |
 
-## 🛠 Requirements
+## 🪟 Run it on Windows
 
-- Python 3.8 or later. The server uses only the Python standard library.
-- A laptop and iPad on the same trusted Wi-Fi network.
-- iPad mini 1 with iOS 9-era Safari. The layout uses ordinary flow and inline-block controls; the client uses ES5 JavaScript and `XMLHttpRequest` rather than `fetch`.
-- One existing folder you are comfortable sharing as read-only.
+1. Install Python 3.8 or later from [python.org](https://www.python.org/downloads/). In the installer, enable **Add Python to PATH**.
+2. Open the `Pocket Desk` folder you downloaded or cloned.
+3. Double-click **`PocketDesk.pyw`**. A small Pocket Desk window opens; there is no terminal to operate.
+4. Under **Folder the iPad can browse**, choose one existing folder. This shelf is read-only on the iPad.
+5. For laptop-only testing, leave the address as `127.0.0.1`. For iPad access, open PowerShell and run `ipconfig`; find the **IPv4 Address** under your Wi-Fi adapter and enter that address in the window (for example, `192.168.1.24`).
+6. Optionally choose a separate **Photo destination**. Leaving it blank keeps uploads disabled.
+7. Click **Start Pocket Desk**. The window shows the iPad address and pairing code. Keep it open while using Pocket Desk. Click **Stop Pocket Desk** or close the window to stop the server.
 
-## 🚪 Start the desk
-
-Follow these steps on the laptop. You only need to do the setup once; after that, start the server whenever you want to use the iPad desk.
-
-1. **Check Python.** Open PowerShell and run:
-
-```powershell
-python --version
-```
-
-You need Python 3.8 or later. If PowerShell says it cannot find `python`, try `py --version`; use `py` instead of `python` in the commands below.
-
-2. **Choose one folder to share.** In File Explorer, create `Pocket Shelf` on your Desktop and put a harmless test file in it. The iPad will only be able to read files inside this folder. Do not choose your whole Desktop, user folder, or drive.
-
-3. **Find the laptop's Wi-Fi address.** In PowerShell, run:
-
-```powershell
-ipconfig
-```
-
-Under **Wireless LAN adapter Wi-Fi**, note the **IPv4 Address**. It will look like `192.168.1.24`. Use the address shown on your laptop; that number is only an example.
-
-4. **Open PowerShell in the Pocket Desk folder.** In File Explorer, open the folder that contains `server.py`. Click the address bar, type `powershell`, and press Enter. This opens PowerShell in the right place.
-
-5. **Start the server.** Replace `192.168.1.24` with the laptop's IPv4 address from step 3. This command shares the Desktop folder from step 2:
-
-```powershell
-python server.py --share-folder "$env:USERPROFILE\Desktop\Pocket Shelf" --host 192.168.1.24
-```
-
-If you used `py` in step 1, run `py server.py` with the same options instead.
-
-The terminal prints an **iPad address** and a fresh six-digit pairing code. Keep this PowerShell window open while you use Pocket Desk. The server binds only to the exact IPv4 address you supplied; without `--host`, it binds to `127.0.0.1` and only works on the laptop. It does not open firewall ports or change your router. If Windows or the network blocks the connection, Pocket Desk will not change those settings for you.
-
-The laptop's local control page is `http://127.0.0.1:8788/host.html`. It shows the code and has the **Disconnect iPad** button. Press **Ctrl+C** in the server window to stop Pocket Desk.
+The desktop window and server use only Python's standard library. If double-clicking does not open the window, open PowerShell in the project folder and run `pyw PocketDesk.pyw` (or `pythonw PocketDesk.pyw`).
 
 ## 📱 Connect the iPad
 
-1. Join the same trusted Wi-Fi as the laptop.
-2. Open the printed address in Safari, for example `http://192.168.1.24:8787/`.
-3. Type the code shown on the laptop control page. The code changes after five minutes and can only pair one iPad at a time.
-4. Use **Notes** or **File shelf**. The laptop's control page has a **Disconnect iPad** button; the iPad also has a local disconnect button.
+1. Join the same trusted Wi-Fi network as the laptop.
+2. Open the iPad address shown by the laptop window in Safari, for example `http://192.168.1.24:8787/`.
+3. Type the six-digit code shown in the laptop window.
+4. Use Notes, File shelf, Photo, Laptop, and Voice & screen. The code expires after five minutes; only one iPad can pair at a time.
 
-An access point can choose to show a captive sign-in window, but a web app cannot make iOS open one. Use the same address in regular Safari if the captive window does not show the app or gets in the way. Pocket Desk does not imitate a public hotspot, intercept traffic, or modify router settings. There is no QR image in this first version; the local address is printed in the terminal for copying.
+Use regular Safari if an access point opens a captive sign-in window. Pocket Desk does not imitate a hotspot or change router settings.
+
+## 📷 Use the photo drop
+
+Photo sending is off until you choose a destination folder in the laptop window before starting the server. This folder is separate from the read-only shelf. On the iPad, open **Photo**, choose an image, and confirm the upload. The server accepts JPEG, PNG, or GIF images up to 8 MB and gives each a new filename, so it will not overwrite an existing picture.
+
+The iOS 9 file picker may offer the camera or photo library depending on the iPad. Safari decides what appears; Pocket Desk cannot force the camera to open. If the picker does not expose a picture, use the iPad’s built-in tools to make it available first. Uploads are sent over local plain HTTP, so use a Wi-Fi network you trust.
+
+## 📼 Limits of an old iPad
+
+The iPad mini 1's iOS 9 Safari does not provide the browser APIs for in-page voice recording or live screen capture/mirroring. The **Voice & screen** module explains this on the iPad. Use the iPad's built-in Voice Memos or Apple screen-mirroring controls instead; Pocket Desk cannot receive those recordings or mirror either screen.
+
+The photo module asks Safari's native picker for an image; it is not a live camera preview. A modern browser cannot access the laptop camera from this plain-HTTP local address either. Pocket Desk does not secretly access a camera or microphone.
 
 ## 🔒 Privacy and network boundaries
 
-- The laptop page and iPad page use two small HTTP servers: the iPad server binds to the exact address you pass, and laptop controls bind to `127.0.0.1` only.
-- Notes are stored at `%LOCALAPPDATA%\PocketDesk\notes.json` on Windows (or `~/.pocket-desk/notes.json` elsewhere), not in this project folder.
-- Pairing is a convenience barrier for a trusted local network, not strong authentication. The code and session travel over plain HTTP, and the session token is kept in the iPad browser's local storage. Anyone who can observe or join that Wi-Fi may be able to inspect traffic. Do not use an untrusted or public network, and do not forward these ports to the internet.
-- File paths are resolved under the selected folder. Requests containing traversal paths are rejected, and symlinks that point outside the selected folder are skipped. The file shelf is read-only.
-- There is no upload, cloud sync, telemetry, analytics, audio, camera capture, QR service, or external asset request.
+- The iPad server binds only to the exact IPv4 address you enter. Laptop controls bind to `127.0.0.1` only.
+- Notes are saved at `%LOCALAPPDATA%\PocketDesk\notes.json` on Windows (or `~/.pocket-desk/notes.json` elsewhere), outside the project folder.
+- Pairing is meant for a trusted local network, not strong authentication. Pairing codes, session tokens, notes, and selected photos travel over unencrypted HTTP. Do not use public Wi-Fi or forward these ports to the internet.
+- File paths are resolved inside the chosen shelf. Traversal is rejected and symlinks pointing outside are skipped. The shelf has no write or delete feature.
+- Photo upload requires an explicit laptop-selected destination and iPad confirmation. The server does not accept arbitrary paths from the iPad.
+- No cloud sync, telemetry, analytics, external runtime assets, or automatic firewall/router changes.
 
 ## 📂 Project structure
 
 ```text
 Pocket Desk/
-├── .gitignore  # keeps Python bytecode and local environments out of Git
-├── server.py   # local file and notes API, pairing, and two server bindings
-├── index.html  # iPad desk and its three small tool panels
-├── app.js      # ES5 client for pairing, notes, and the read-only shelf
-├── host.html   # loopback-only laptop status and disconnect page
-├── host.js     # laptop pairing-code display and session control
-├── styles.css  # old-Safari-friendly paper, ink, and layout rules
-└── README.md   # setup, boundaries, and manual iPad checklist
+├── PocketDesk.pyw  # double-click Windows launcher
+├── desktop.py      # Tkinter laptop window
+├── server.py       # local API, pairing, file shelf, photo saving
+├── index.html      # iPad desk modules
+├── app.js          # ES5 iPad client
+├── host.html       # loopback-only browser controls
+├── host.js         # local pairing status and disconnect
+├── styles.css      # old-Safari-friendly layout
+└── README.md       # setup and device limitations
 ```
 
 ## ⚙️ How it works
 
-`server.py` uses Python's built-in HTTP server. The iPad side and the laptop controls run on separate ports; the control side is bound to loopback, so it is not available from the iPad. A random six-digit code pairs one browser session, and a random session token expires after eight hours. Pair attempts are limited after repeated mistakes.
-
-Notes are plain JSON on the laptop, updated through a temporary file and rename so a normal save does not leave a half-written file. The browser builds note and file rows with `textContent`, so note text and filenames are displayed as text rather than interpreted as markup.
-
-The file shelf has no write route. Each requested path is checked after resolving symlinks and must remain inside the selected folder. It only lists regular files and folders; it does not provide a file manager for the rest of the laptop.
-
-## 🎨 The paper, not the dashboard
-
-Pocket Desk uses warm paper, green desk-lamp ink, and a small rust-colored stamp. The tabs are simply numbered like drawers. There are no charts, tiles, login screens, remote services, or animated effects to slow down an old iPad.
-
-The camera panel is intentionally honest. WebKit announced WebRTC camera support with Safari 11 on macOS and iOS 11, later than the iPad mini 1's iOS 9 Safari ([WebKit: A Closer Look Into WebRTC](https://webkit.org/blog/7763/a-closer-look-into-webrtc/)). The desk is served over local HTTP, which is not a secure context for camera access in current browsers either ([W3C Secure Contexts](https://www.w3.org/TR/secure-contexts/)). A camera feature would need a different, explicitly approved laptop-side capture design; this version makes no camera request and captures nothing.
+`PocketDesk.pyw` opens a Python Tkinter window and starts the local server when requested. Notes and paired-device state are held by the server; notes are written through a temporary file and rename. A random six-digit code pairs one browser session. The file shelf only reads from its chosen directory. Photo saves use a separate, optional chosen directory and unique generated names. The iPad client uses ES5 JavaScript and `XMLHttpRequest` for old Safari compatibility.
 
 ## ✅ iOS 9 Safari check
 
-I do not have a physical iPad mini 1 in this environment, so this is a manual checklist for the real device:
+I do not have a physical iPad mini 1 in this environment. Check these steps on the actual device:
 
-- [ ] Open the laptop's printed LAN address in regular Safari while both devices are on the same Wi-Fi.
-- [ ] Pair with the current code; wait five minutes and confirm an expired code is rejected.
-- [ ] Add a note, edit it, search it, delete it, and reload Safari to check that it remains saved on the laptop.
-- [ ] Open a folder, download a file, go back up, and confirm no upload or delete control is present.
-- [ ] Disconnect from either side; confirm the iPad must pair again with a new code.
-- [ ] Open **Camera** and confirm the page explains the limitation without requesting camera or microphone access.
-- [ ] If the access point opens a captive window, try the same address in regular Safari.
+- [ ] Open the laptop's shown address in Safari while both devices use the same Wi-Fi.
+- [ ] Pair with the current code and confirm a wrong/expired code is rejected.
+- [ ] Add, edit, search, delete, and reload notes.
+- [ ] Browse and download a file from the selected shelf.
+- [ ] Check battery status; a desktop may have no reading.
+- [ ] With an optional destination selected, choose a small image, confirm upload, and check the laptop folder.
+- [ ] Verify photo saving remains disabled when no destination was selected.
+- [ ] Confirm Voice & screen explains the old-browser limits without requesting microphone or screen access.
+- [ ] Disconnect and confirm pairing is required again.

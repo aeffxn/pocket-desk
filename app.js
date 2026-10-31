@@ -63,7 +63,7 @@
   }
 
   function setPanel(name) {
-    var panels = ['notes-panel', 'files-panel', 'camera-panel'];
+    var panels = ['notes-panel', 'files-panel', 'photo-panel', 'device-panel', 'voice-panel'];
     var i;
     var panel;
     var tabs = document.getElementsByClassName('tool-tab');
@@ -76,6 +76,8 @@
     }
     if (name === 'files-panel') loadFiles('');
     if (name === 'notes-panel') loadNotes();
+    if (name === 'photo-panel') checkPhotoSetting();
+    if (name === 'device-panel') loadDevice();
   }
 
   function renderNotes() {
@@ -212,6 +214,48 @@
     bits.pop();
     return bits.join('/');
   }
+
+  function checkPhotoSetting() {
+    request('GET', '/api/uploads/status', null, function (status, result) {
+      var enabled = status === 200 && result.photos_enabled;
+      document.getElementById('photo-state').textContent = enabled ? 'READY' : 'OFF';
+      document.getElementById('photo-disabled').style.display = enabled ? 'none' : 'block';
+      document.getElementById('photo-file').disabled = !enabled;
+    });
+  }
+
+  function loadDevice() {
+    var reading = document.getElementById('battery-reading');
+    text(reading, 'Checking the laptop…');
+    request('GET', '/api/device', null, function (status, result) {
+      if (status !== 200 || !result.available) {
+        text(reading, 'No battery reading is available.');
+        text(document.getElementById('battery-detail'), 'The laptop may be a desktop, or Windows may not report battery information.');
+      } else {
+        text(reading, result.percent + '%');
+        text(document.getElementById('battery-detail'), result.on_ac_power === null ? 'Windows could not tell whether the laptop is plugged in.' : (result.on_ac_power ? 'Plugged into power.' : 'Running on battery.'));
+      }
+    });
+  }
+
+  document.getElementById('refresh-device').addEventListener('click', loadDevice);
+  document.getElementById('photo-file').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    var reader;
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { text(document.getElementById('photo-message'), 'Choose an image smaller than 8 MB.'); return; }
+    if (!/^image\/(jpeg|png|gif)$/i.test(file.type)) { text(document.getElementById('photo-message'), 'Choose a JPEG, PNG, or GIF image.'); return; }
+    if (!window.confirm('Send “' + file.name + '” to the photo folder chosen on the laptop?')) { this.value = ''; return; }
+    reader = new FileReader();
+    reader.onload = function () {
+      request('POST', '/api/photos', { data: reader.result }, function (status, result) {
+        text(document.getElementById('photo-message'), status === 201 ? 'Saved as ' + result.saved : (result.error || 'Could not save the photo.'));
+        document.getElementById('photo-file').value = '';
+      });
+    };
+    reader.onerror = function () { text(document.getElementById('photo-message'), 'Safari could not read that image.'); };
+    reader.readAsDataURL(file);
+  });
 
   document.getElementById('pair-form').addEventListener('submit', function (event) {
     var code = document.getElementById('pair-code').value.replace(/\s/g, '');

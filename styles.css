@@ -42,6 +42,7 @@ input:focus,textarea:focus,button:focus { outline: 2px solid #aa674e; outline-of
 .tool-tabs { width: 100%; min-height: 50px; border-top: 1px solid #d7d2c6; border-bottom: 1px solid #c8c5b9; }
 .tool-tab { display: inline-block; min-height: 49px; padding: 11px 17px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #747d72; font: 13px Georgia, "Times New Roman", serif; cursor: pointer; }
 .tool-tab.active { border-bottom-color: #b66c51; color: #26352f; }
+.tool-tab:disabled { opacity: .5; cursor: default; }
 .tab-index { margin-right: 7px; color: #a15d45; font: 9px "Courier New", monospace; }
 .tool-panel { max-width: 700px; min-height: 360px; margin: 0 auto; padding: 30px 4px 40px; }
 .panel-heading { overflow: hidden; margin-bottom: 20px; }
@@ -84,6 +85,7 @@ input:focus,textarea:focus,button:focus { outline: 2px solid #aa674e; outline-of
 .camera-note h3 { margin: 0 0 10px; font: 500 23px Georgia, "Times New Roman", serif; }
 .camera-note p { margin: 9px 0; color: #66736b; font-size: 13px; line-height: 1.7; }
 .camera-note .source-note { padding-top: 9px; border-top: 1px solid #dfdbd0; color: #919186; font: 10px/1.6 "Courier New", monospace; }
+.camera-note input[type=file] { display: block; margin: 12px 0; }
 .desk-footer { padding: 13px 0 23px; border-top: 1px solid #d7d2c6; color: #7c837a; font: 9px "Courier New", monospace; letter-spacing: .5px; overflow: hidden; }
 .desk-footer span:first-child { float: left; }
 .desk-footer span:last-child { float: right; }
@@ -117,6 +119,7 @@ input:focus,textarea:focus,button:focus { outline: 2px solid #aa674e; outline-of
   .desk-screen { padding-top: 27px; }
   .desk-heading h1 { font-size: 37px; }
   .tool-tab { padding: 10px 9px; font-size: 12px; }
+  .tool-tabs { height: auto; }
   .tool-panel { padding-top: 24px; }
   .panel-heading h2 { font-size: 27px; }
   .camera-note { padding: 18px; }

@@ -1,4 +1,5 @@
 import argparse
+import base64
 import datetime
 import hmac
 import http.server
@@ -16,7 +17,8 @@ from urllib.parse import parse_qs, quote, urlsplit
 APP_DIR = Path(__file__).resolve().parent
 SESSION_SECONDS = 8 * 60 * 60
 PAIR_SECONDS = 5 * 60
-MAX_BODY = 16000
+MAX_BODY = 12 * 1024 * 1024
+MAX_PHOTO_BYTES = 8 * 1024 * 1024
 
 
 def data_directory():
@@ -40,10 +42,13 @@ def inside(root, candidate):
 
 
 class DeskState:
-    def __init__(self, shared_folder, notes_path):
+    def __init__(self, shared_folder, notes_path, photo_folder=None):
         self.shared_folder = Path(shared_folder).resolve(strict=True)
         if not self.shared_folder.is_dir():
             raise ValueError("The shared folder must be an existing directory.")
+        self.photo_folder = Path(photo_folder).resolve(strict=True) if photo_folder else None
+        if self.photo_folder is not None and not self.photo_folder.is_dir():
+            raise ValueError("The photo destination must be an existing directory.")
         self.notes_path = Path(notes_path)
         self.notes_path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
@@ -277,6 +282,16 @@ class DeskHandler(BaseHandler):
                 with self.server.state.lock:
                     self.send_json(200, {"notes": list(self.server.state.notes)})
                 return
+            if path == "/api/device":
+                if not self.auth_required():
+                    return
+                self.send_json(200, self.battery_status())
+                return
+            if path == "/api/uploads/status":
+                if not self.auth_required():
+                    return
+                self.send_json(200, {"photos_enabled": self.server.state.photo_folder is not None})
+                return
             self.send_json(404, {"error": "That desk route does not exist."})
             return
         if path in ("/host.html", "/host.js"):
@@ -331,7 +346,58 @@ class DeskHandler(BaseHandler):
             except ValueError as error:
                 self.send_json(400, {"error": str(error)})
             return
+        if path == "/api/photos":
+            if not self.auth_required():
+                return
+            folder = self.server.state.photo_folder
+            if folder is None:
+                self.send_json(403, {"error": "Photo saving is turned off on the laptop."})
+                return
+            try:
+                data = self.read_json()
+                image_data = data.get("data", "")
+                if not isinstance(image_data, str) or not image_data.startswith("data:image/"):
+                    raise ValueError("Choose a photo image first.")
+                header, encoded = image_data.split(",", 1)
+                mime = header[5:].split(";", 1)[0].lower()
+                extensions = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif"}
+                if mime not in extensions or ";base64" not in header:
+                    raise ValueError("Use a JPEG, PNG, or GIF image.")
+                raw = base64.b64decode(encoded, validate=True)
+                if not raw or len(raw) > MAX_PHOTO_BYTES:
+                    raise ValueError("Photos must be smaller than 8 MB.")
+                signatures = {"image/jpeg": raw.startswith(b"\xff\xd8\xff"),
+                              "image/png": raw.startswith(b"\x89PNG\r\n\x1a\n"),
+                              "image/gif": raw.startswith((b"GIF87a", b"GIF89a"))}
+                if not signatures[mime]:
+                    raise ValueError("The selected file does not match its image type.")
+                stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+                target = folder / ("PocketDesk-%s-%s%s" % (stamp, secrets.token_hex(4), extensions[mime]))
+                with target.open("xb") as file_obj:
+                    file_obj.write(raw)
+                self.send_json(201, {"saved": target.name})
+            except (ValueError, OSError) as error:
+                self.send_json(400, {"error": str(error) or "Could not save that photo."})
+            return
         self.send_json(404, {"error": "That desk route does not exist."})
+
+    def battery_status(self):
+        if os.name != "nt":
+            return {"available": False}
+        try:
+            import ctypes
+            class PowerStatus(ctypes.Structure):
+                _fields_ = [("ACLineStatus", ctypes.c_byte), ("BatteryFlag", ctypes.c_byte),
+                            ("BatteryLifePercent", ctypes.c_byte), ("SystemStatusFlag", ctypes.c_byte),
+                            ("BatteryLifeTime", ctypes.c_ulong), ("BatteryFullLifeTime", ctypes.c_ulong)]
+            status = PowerStatus()
+            if not ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(status)):
+                return {"available": False}
+            percent = int(status.BatteryLifePercent)
+            return {"available": percent <= 100, "percent": percent if percent <= 100 else None,
+                    "on_ac_power": True if status.ACLineStatus == 1 else (False if status.ACLineStatus == 0 else None)}
+        except Exception:
+            return {"available": False}
 
     def do_PUT(self):
         path = self.api_path()
@@ -459,6 +525,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="A small private desk for an iPad and laptop on your own Wi-Fi.")
     parser.add_argument("--share-folder", required=True, help="The one existing folder the iPad may browse and download from.")
     parser.add_argument("--host", default="127.0.0.1", help="Exact laptop IPv4 address to bind. Default: 127.0.0.1 (laptop only).")
+    parser.add_argument("--photo-folder", help="Optional existing folder where paired iPad photos may be saved.")
     parser.add_argument("--port", type=int, default=8787, help="iPad page port (default 8787).")
     parser.add_argument("--control-port", type=int, default=8788, help="Laptop-only control page port (default 8788).")
     return parser.parse_args()
@@ -474,7 +541,7 @@ def main():
             raise ValueError("Ports must be between 1 and 65535.")
         if args.port == args.control_port:
             raise ValueError("The iPad and laptop control pages need different ports.")
-        state = DeskState(args.share_folder, data_directory() / "notes.json")
+        state = DeskState(args.share_folder, data_directory() / "notes.json", args.photo_folder)
         lan_server = http.server.ThreadingHTTPServer((str(host_ip), args.port), DeskHandler)
         lan_server.state = state
         control_server = http.server.ThreadingHTTPServer(("127.0.0.1", args.control_port), ControlHandler)
