@@ -75,6 +75,7 @@ An access point can choose to show a captive sign-in window, but a web app canno
 
 ```text
 Pocket Desk/
+├── .gitignore  # keeps Python bytecode and local environments out of Git
 ├── server.py   # local file and notes API, pairing, and two server bindings
 ├── index.html  # iPad desk and its three small tool panels
 ├── app.js      # ES5 client for pairing, notes, and the read-only shelf
