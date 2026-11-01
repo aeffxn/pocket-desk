@@ -1,64 +1,104 @@
 # Pocket Desk
 
-A private workspace that runs on your computer and opens in a phone or tablet browser over the same Wi-Fi network. It includes notes, a read-only file shelf, a clock, a timer, themes, and 13 small games. There is no account or cloud service.
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python&logoColor=white)
+![Interface](https://img.shields.io/badge/Interface-Web%20%2B%20Windows%20app-315b4b?style=flat-square)
+![Network](https://img.shields.io/badge/Network-Local%20Wi--Fi-596461?style=flat-square)
+
+A private workspace that runs on a Windows computer and opens in a phone or tablet browser over the same Wi-Fi. Use it as a desk clock, timer, game shelf, notebook, drawing pad, and read-only file shelf. No account or cloud service is involved.
+
+## Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Run Pocket Desk](#run-pocket-desk)
+- [Connect a phone or tablet](#connect-a-phone-or-tablet)
+- [Files, photos, and saved data](#files-photos-and-saved-data)
+- [Project layout](#project-layout)
+- [Privacy and limits](#privacy-and-limits)
 
 ## Features
 
-- **Clock and timer:** Large local clock, date, 12/24-hour display, and a separate countdown timer.
-- **Games:** Snake, Finger football, Shoot the hoop, Tic-tac-toe, Memory match, 2048, Reaction test, Rock paper scissors, Simon, Number recall, Word scramble, Higher or lower, and Tap sprint.
-- **Themes:** Paper, Midnight, Blue hour, Grove, and Rosewood. The selection is saved in the browser.
-- **Notes:** Create, edit, search, and delete notes stored on the computer.
-- **Drawing notes:** Draw with touch, mouse, or a stylus; add typed text, lines, rectangles, and ellipses. More pages append as you scroll. Drawings autosave on the computer.
-- **File shelf:** Browse one selected folder. Open images, text, CSV files, and PDFs in the browser; download other formats or save a copy.
-- **Photo drop:** Optional image upload to a separate folder chosen on the computer. The user confirms each upload.
-- **Connection:** A short-lived pairing code connects one browser session at a time.
+### Clock, timer, and themes
 
-## Start on Windows
+- Large clock with date and 12 or 24 hour display.
+- Separate countdown timer with pause, resume, reset, and saved timer state in the browser.
+- Five themes: Paper, Midnight, Blue hour, Grove, and Rosewood. Theme choice is saved in that browser.
 
-1. Install Python 3.8 or newer from [python.org](https://www.python.org/downloads/) and enable **Add Python to PATH**.
+### 18 games
+
+Snake, Finger football, Shoot the hoop, Tic-tac-toe, Memory match, 2048, Reaction test, Rock paper scissors, Simon, Number recall, Word scramble, Higher or lower, Tap sprint, Coin flip, Dice roll, Guess the number, Color match, and Whack-a-dot.
+
+### Notes and drawing pages
+
+- Create, edit, search, and delete text notes.
+- Make drawing notes with touch, mouse, or stylus input.
+- Add freehand marks, erase, type text onto a page, or draw lines, rectangles, and ellipses.
+- Undo the latest mark or clear the current page. More pages are added while scrolling; drawings autosave on the computer.
+
+### Files, photos, and computer status
+
+- Browse one folder selected on the Windows computer. The file shelf is read only.
+- Open images, plain text, CSV, and PDF files in the browser; download other formats.
+- Optionally send a photo from the phone or tablet to a separate folder chosen on the computer. Uploads are off until a destination is set.
+- Check battery, power connection, system memory, free and used space on the drive holding Pocket Desk data, Pocket Desk process memory, processor information, and Windows version. Some readings are unavailable on computers or operating systems that do not report them.
+
+## Requirements
+
+- Windows 10 or newer
+- Python 3.8 or newer, with Tcl/Tk enabled for the desktop window
+- A phone or tablet browser for remote use
+
+Pocket Desk uses Python's standard library and does not require `pip` packages.
+
+## Run Pocket Desk
+
+1. Install Python from [python.org](https://www.python.org/downloads/) and enable **Add Python to PATH**. Keep **tcl/tk and IDLE** selected.
 2. Open the Pocket Desk folder.
-3. Double-click `PocketDesk.pyw` to open the desktop window.
-4. Choose a folder for the read-only file shelf.
-5. To use Pocket Desk on this computer only, leave the network address at `127.0.0.1`. To connect a phone or tablet, enter the computer's Wi-Fi IPv4 address. Find it in PowerShell with `ipconfig` under the Wi-Fi adapter.
-6. Optionally choose a separate photo destination. Leave it blank to keep uploads off.
-7. Click **Start Pocket Desk**. The window shows the address and pairing code. Keep the window open while connected.
+3. Double-click `PocketDesk.pyw`. If that does not open, use PowerShell in this folder and run:
 
-Close the window or click **Stop Pocket Desk** to stop. If double-clicking does not work, open PowerShell in this folder and run `pyw PocketDesk.pyw`.
+   ```powershell
+   pyw PocketDesk.pyw
+   ```
+
+4. In the desktop window, choose the folder for the read-only file shelf.
+5. For computer-only use, leave the address as `127.0.0.1`. To connect a phone or tablet, enter the computer's Wi-Fi IPv4 address. Find it with `ipconfig` in PowerShell under the Wi-Fi adapter.
+6. Optionally select a separate photo destination folder. Leave it blank to keep uploads disabled.
+7. Click **Start Pocket Desk**. Keep the desktop window open; it shows the web address and a short-lived pairing code.
 
 ## Connect a phone or tablet
 
 1. Connect both devices to the same trusted Wi-Fi network.
-2. On the phone or tablet, open the workspace address shown in the desktop window, such as `http://192.168.1.24:8787/`.
-3. Enter the pairing code shown on the computer.
-4. On a narrow screen, use **Open module** to switch between Clock, Timer, Games, Themes, Notes, Files, Photo, Laptop status, and Audio & screen.
+2. Open the address shown in the desktop window on the phone or tablet. It looks like `http://192.168.1.24:8787/`.
+3. Enter the pairing code from the computer.
+4. Choose a module from the navigation. On narrow screens, use **Open module**.
 
-Pocket Desk does not change firewall or router settings. If the network blocks device-to-device connections, the app cannot bypass that restriction.
+Only one browser session can be paired at a time. Disconnect it from the browser or desktop app before pairing another device. Pocket Desk does not change firewall or router settings; some networks block devices from connecting to each other.
 
-## Files and photos
+## Files, photos, and saved data
 
-The file shelf only reads inside the one folder chosen in the desktop window. Images, plain text, CSV, and PDF files have an **Open** action; every file can be downloaded. Office documents and other formats need a compatible app on the phone or tablet after download.
+The file shelf can only browse inside its selected folder. It does not edit or delete those files. Images, text, CSV, and PDF files have an **Open** action; other types can be downloaded and opened in a compatible app.
 
-Photo uploads are off unless a separate destination folder is selected. JPEG, PNG, GIF, WebP, HEIC, and HEIF images up to 8 MB are accepted. Each image gets a new name, so existing files are not overwritten.
+Photo uploads accept JPEG, PNG, GIF, WebP, HEIC, and HEIF images up to 8 MB. Each upload gets a new filename so it does not replace an existing photo.
 
-## Compatibility and privacy
+Notes and drawings are stored on Windows at `%LOCALAPPDATA%\PocketDesk\`. Themes and timer preferences are stored in the browser. Photos are written only to the destination folder selected in the desktop app.
 
-The interface uses ordinary HTML, CSS, and ES5 JavaScript for broad mobile-browser compatibility. File pickers, image formats, and native previews vary by device and browser. Microphone and screen capture are not enabled: most browsers require a secure HTTPS page for those features, while this local server uses plain HTTP.
-
-The workspace is intended for a trusted local network. Pairing codes, notes, files, and selected photos travel over unencrypted HTTP. Do not use public Wi-Fi or forward the ports to the internet. The server binds to the specific IPv4 address you enter; its desktop control page is loopback-only. It does not configure your firewall or router.
-
-Notes and drawings are stored outside the project in `%LOCALAPPDATA%\PocketDesk\` on Windows. Photo uploads are saved only to the selected destination. No telemetry, analytics, or cloud sync is included.
-
-## Project files
+## Project layout
 
 ```text
 Pocket Desk/
-├── PocketDesk.pyw  # Windows launcher
-├── desktop.py      # desktop controls
-├── server.py       # local server, notes, file shelf, and photo upload
-├── index.html      # browser interface and game modules
-├── app.js          # ES5 client and local preferences
-├── host.html       # local-only pairing controls
-├── host.js         # pairing status and disconnect
-├── styles.css      # responsive layout and themes
-└── README.md       # setup and feature guide
+├── PocketDesk.pyw  # Windows desktop launcher
+├── desktop.py      # Desktop controls and server process
+├── server.py       # Local web server, APIs, and file access
+├── index.html      # Browser interface and game modules
+├── app.js          # Browser behavior and local preferences
+├── host.html       # Local pairing controls
+├── host.js         # Pairing status and disconnect
+├── styles.css      # Responsive layout, themes, and game styles
+└── README.md       # Setup and feature guide
 ```
+
+## Privacy and limits
+
+Pairing codes, notes, drawings, and files travel over unencrypted HTTP on the local network. Use a trusted Wi-Fi network; do not expose the server to the public internet or forward its port. The desktop control page is loopback only.
+
+Microphone recording and live screen mirroring are not included. Phone browsers generally require HTTPS for those features, while this local server uses HTTP. The photo file picker may offer camera capture depending on the device and browser.

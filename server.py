@@ -8,8 +8,10 @@ import json
 import math
 import mimetypes
 import os
+import platform
 import re
 import secrets
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -465,7 +467,7 @@ class DeskHandler(BaseHandler):
             if path == "/api/device":
                 if not self.auth_required():
                     return
-                self.send_json(200, self.battery_status())
+                self.send_json(200, self.computer_status())
                 return
             if path == "/api/uploads/status":
                 if not self.auth_required():
@@ -593,23 +595,63 @@ class DeskHandler(BaseHandler):
             return
         self.send_json(404, {"error": "That desk route does not exist."})
 
-    def battery_status(self):
-        if os.name != "nt":
-            return {"available": False}
+    def computer_status(self):
+        result = {"battery_available": False, "memory_available": False,
+                  "process_memory_bytes": None, "system": platform.platform(),
+                  "processor": platform.processor() or "Not reported by this computer",
+                  "storage_available": False}
+        if os.name == "nt":
+            try:
+                import ctypes
+
+                class PowerStatus(ctypes.Structure):
+                    _fields_ = [("ACLineStatus", ctypes.c_byte), ("BatteryFlag", ctypes.c_byte),
+                                ("BatteryLifePercent", ctypes.c_byte), ("SystemStatusFlag", ctypes.c_byte),
+                                ("BatteryLifeTime", ctypes.c_ulong), ("BatteryFullLifeTime", ctypes.c_ulong)]
+
+                power = PowerStatus()
+                if ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(power)):
+                    percent = int(power.BatteryLifePercent)
+                    result.update({"battery_available": percent <= 100,
+                                   "battery_percent": percent if percent <= 100 else None,
+                                   "on_ac_power": True if power.ACLineStatus == 1 else (False if power.ACLineStatus == 0 else None)})
+
+                class MemoryStatus(ctypes.Structure):
+                    _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                                ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                                ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                                ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                                ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+                memory = MemoryStatus()
+                memory.dwLength = ctypes.sizeof(MemoryStatus)
+                if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
+                    result.update({"memory_available": True, "memory_total_bytes": int(memory.ullTotalPhys),
+                                   "memory_available_bytes": int(memory.ullAvailPhys),
+                                   "memory_used_percent": int(memory.dwMemoryLoad)})
+
+                class ProcessMemory(ctypes.Structure):
+                    _fields_ = [("cb", ctypes.c_ulong), ("PageFaultCount", ctypes.c_ulong),
+                                ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+                                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                                ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t),
+                                ("PrivateUsage", ctypes.c_size_t)]
+
+                process_memory = ProcessMemory()
+                process_memory.cb = ctypes.sizeof(ProcessMemory)
+                process = ctypes.windll.kernel32.GetCurrentProcess()
+                if ctypes.windll.psapi.GetProcessMemoryInfo(process, ctypes.byref(process_memory), process_memory.cb):
+                    result["process_memory_bytes"] = int(process_memory.WorkingSetSize)
+            except Exception:
+                pass
         try:
-            import ctypes
-            class PowerStatus(ctypes.Structure):
-                _fields_ = [("ACLineStatus", ctypes.c_byte), ("BatteryFlag", ctypes.c_byte),
-                            ("BatteryLifePercent", ctypes.c_byte), ("SystemStatusFlag", ctypes.c_byte),
-                            ("BatteryLifeTime", ctypes.c_ulong), ("BatteryFullLifeTime", ctypes.c_ulong)]
-            status = PowerStatus()
-            if not ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(status)):
-                return {"available": False}
-            percent = int(status.BatteryLifePercent)
-            return {"available": percent <= 100, "percent": percent if percent <= 100 else None,
-                    "on_ac_power": True if status.ACLineStatus == 1 else (False if status.ACLineStatus == 0 else None)}
-        except Exception:
-            return {"available": False}
+            usage = shutil.disk_usage(str(self.server.state.notes_path.parent))
+            result.update({"storage_available": True, "storage_total_bytes": usage.total,
+                           "storage_used_bytes": usage.used, "storage_free_bytes": usage.free})
+        except (OSError, AttributeError):
+            pass
+        return result
 
     def do_PUT(self):
         path = self.api_path()

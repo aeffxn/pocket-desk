@@ -63,6 +63,12 @@
   var sprintCount = 0;
   var sprintRunning = false;
   var sprintBest = 0;
+  var guessTarget = 0;
+  var colorScore = 0;
+  var whackScore = 0;
+  var whackRunning = false;
+  var whackTimeout = null;
+  var diceBest = 0;
 
   function readToken() {
     try { return window.localStorage.getItem(tokenKey) || ''; }
@@ -625,15 +631,27 @@
 
   function loadDevice() {
     var reading = document.getElementById('battery-reading');
-      text(reading, 'Checking computer…');
+    text(reading, 'Checking computer…');
     request('GET', '/api/device', null, function (status, result) {
-      if (status !== 200 || !result.available) {
-        text(reading, 'No battery reading is available.');
-        text(document.getElementById('battery-detail'), 'The laptop may be a desktop, or Windows may not report battery information.');
-      } else {
-        text(reading, result.percent + '%');
-        text(document.getElementById('battery-detail'), result.on_ac_power === null ? 'Windows could not tell whether the laptop is plugged in.' : (result.on_ac_power ? 'Plugged into power.' : 'Running on battery.'));
+      var gib = function (bytes) { return (bytes / 1073741824).toFixed(1) + ' GB'; };
+      if (status !== 200) {
+        text(reading, 'Computer details unavailable');
+        text(document.getElementById('battery-detail'), result.error || 'Could not read computer status.');
+        return;
       }
+      if (result.battery_available) {
+        text(reading, result.battery_percent + '%');
+        text(document.getElementById('battery-detail'), result.on_ac_power === null ? 'Power connection not reported.' : (result.on_ac_power ? 'Connected to power.' : 'Running on battery.'));
+      } else {
+        text(reading, 'No battery detected');
+        text(document.getElementById('battery-detail'), 'Battery information is not reported by this computer.');
+      }
+      text(document.getElementById('memory-reading'), result.memory_available ? gib(result.memory_total_bytes - result.memory_available_bytes) + ' / ' + gib(result.memory_total_bytes) : 'Unavailable');
+      text(document.getElementById('memory-detail'), result.memory_available ? result.memory_used_percent + '% in use · ' + gib(result.memory_available_bytes) + ' available' : 'Memory details are available on Windows.');
+      text(document.getElementById('storage-reading'), result.storage_available ? gib(result.storage_free_bytes) + ' free' : 'Unavailable');
+      text(document.getElementById('storage-detail'), result.storage_available ? gib(result.storage_used_bytes) + ' used of ' + gib(result.storage_total_bytes) + ' · drive used by Pocket Desk' : 'Drive space could not be read.');
+      text(document.getElementById('process-reading'), result.process_memory_bytes ? gib(result.process_memory_bytes) + ' RAM' : 'Usage unavailable');
+      text(document.getElementById('system-detail'), result.system + ' · ' + result.processor);
     });
   }
 
@@ -1056,7 +1074,7 @@
   }
 
   function openGame(game) {
-    var games = ['snake-game', 'football-game', 'hoop-game', 'ttt-game', 'memory-game', 'tiles-game', 'reaction-game', 'rps-game', 'simon-game', 'number-game', 'word-game', 'higher-game', 'sprint-game'];
+    var games = ['snake-game', 'football-game', 'hoop-game', 'ttt-game', 'memory-game', 'tiles-game', 'reaction-game', 'rps-game', 'simon-game', 'number-game', 'word-game', 'higher-game', 'sprint-game', 'coin-game', 'dice-game', 'guess-game', 'color-game', 'whack-game'];
     var i;
     if (game !== 'snake-game' && snakeTimer) { window.clearInterval(snakeTimer); snakeTimer = null; }
     if (game !== 'hoop-game') hoopRunning = false;
@@ -1072,6 +1090,46 @@
     if (game === 'word-game') nextWord();
     if (game === 'higher-game') { higherCurrent = Math.floor(Math.random() * 13) + 1; higherStreak = 0; text(document.getElementById('higher-card'), String(higherCurrent)); text(document.getElementById('higher-status'), 'Streak: 0'); }
     if (game === 'sprint-game') { sprintRunning = false; sprintCount = 0; text(document.getElementById('sprint-pad'), 'Start'); text(document.getElementById('sprint-status'), 'Best: ' + sprintBest); }
+    if (game === 'coin-game') { text(document.getElementById('coin-result'), '?'); text(document.getElementById('coin-status'), 'Choose a side.'); }
+    if (game === 'dice-game') text(document.getElementById('dice-status'), 'Best: ' + (diceBest || '—'));
+    if (game === 'guess-game') resetGuess();
+    if (game === 'color-game') { colorScore = 0; nextColorPrompt(); }
+    if (game === 'whack-game') { whackRunning = false; window.clearTimeout(whackTimeout); text(document.getElementById('whack-status'), 'Score: 0 · tap to start'); }
+  }
+
+  function resetGuess() {
+    guessTarget = Math.floor(Math.random() * 100) + 1;
+    document.getElementById('guess-entry').value = '';
+    text(document.getElementById('guess-status'), 'I picked a number.');
+  }
+
+  function nextColorPrompt() {
+    var names = ['RED', 'BLUE', 'GREEN', 'PURPLE'];
+    var colors = ['#bd5a4b', '#4e7f9b', '#4e805d', '#89649a'];
+    var word = Math.floor(Math.random() * names.length);
+    var ink = Math.floor(Math.random() * names.length);
+    var choices = document.getElementById('color-choices');
+    var button;
+    document.getElementById('color-prompt').textContent = names[word];
+    document.getElementById('color-prompt').style.color = colors[ink];
+    choices.textContent = '';
+    for (var i = 0; i < names.length; i += 1) {
+      button = document.createElement('button'); button.type = 'button'; button.setAttribute('data-color-index', String(i));
+      button.style.color = colors[i]; button.textContent = names[i]; choices.appendChild(button);
+    }
+    choices.setAttribute('data-answer', String(ink));
+    text(document.getElementById('color-status'), 'Score: ' + colorScore);
+  }
+
+  function whackTap(event) {
+    if (!whackRunning) {
+      whackRunning = true; whackScore = 0;
+      whackTimeout = window.setTimeout(function () { whackRunning = false; text(document.getElementById('whack-status'), 'Time · score ' + whackScore + ' · tap to play again'); }, 15000);
+    } else whackScore += 1;
+    var button = document.getElementById('whack-board').getElementsByTagName('button')[0];
+    button.style.left = (5 + Math.floor(Math.random() * 75)) + '%';
+    button.style.top = (5 + Math.floor(Math.random() * 75)) + '%';
+    text(document.getElementById('whack-status'), 'Score: ' + whackScore + ' · 15 seconds');
   }
 
   document.getElementById('tool-picker').addEventListener('change', function () { setPanel(this.value); });
@@ -1114,13 +1172,40 @@
   document.getElementById('higher-reset').addEventListener('click', function () { higherCurrent = Math.floor(Math.random() * 13) + 1; higherStreak = 0; text(document.getElementById('higher-card'), String(higherCurrent)); text(document.getElementById('higher-status'), 'Streak: 0'); });
   document.getElementById('sprint-pad').addEventListener('click', sprintTap);
 
+  document.getElementById('coin-game').addEventListener('click', function (event) {
+    var called = event.target.getAttribute('data-coin');
+    if (!called) return;
+    var result = Math.random() < .5 ? 'Heads' : 'Tails';
+    text(document.getElementById('coin-result'), result);
+    text(document.getElementById('coin-status'), result === called ? 'You called it!' : 'Not this time.');
+  });
+  document.getElementById('dice-roll').addEventListener('click', function () {
+    var total = Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
+    text(document.getElementById('dice-result'), String(total));
+    if (total > diceBest) diceBest = total;
+    text(document.getElementById('dice-status'), 'Total ' + total + ' · best ' + diceBest);
+  });
+  document.getElementById('guess-submit').addEventListener('click', function () {
+    var value = parseInt(document.getElementById('guess-entry').value, 10);
+    if (!value || value < 1 || value > 100) { text(document.getElementById('guess-status'), 'Enter a number from 1 to 100.'); return; }
+    text(document.getElementById('guess-status'), value === guessTarget ? 'You got it! Pick a new number to play again.' : (value < guessTarget ? 'Higher.' : 'Lower.'));
+    if (value === guessTarget) guessTarget = Math.floor(Math.random() * 100) + 1;
+  });
+  document.getElementById('guess-reset').addEventListener('click', resetGuess);
+  document.getElementById('color-choices').addEventListener('click', function (event) {
+    var choice = event.target.getAttribute('data-color-index');
+    if (choice === null) return;
+    if (choice === this.getAttribute('data-answer')) colorScore += 1; else colorScore = Math.max(0, colorScore - 1);
+    nextColorPrompt();
+  });
+  document.getElementById('whack-board').addEventListener('click', whackTap);
+
   document.getElementById('clock-format').addEventListener('click', function () {
     clock24 = !clock24;
     this.textContent = clock24 ? 'Switch to 12-hour' : 'Switch to 24-hour';
     try { window.localStorage.setItem('pocket-desk-clock-format', clock24 ? '24' : '12'); } catch (error) {}
     clockTick();
   });
-  document.getElementById('themes-shortcut').addEventListener('click', function () { setPanel('theme-panel'); });
   document.getElementById('timer-toggle').addEventListener('click', function () {
     if (timerRunning) {
       timerRemaining = Math.max(0, timerDeadline - (+new Date()));
